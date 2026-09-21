@@ -176,8 +176,6 @@ const playGrid = document.getElementById("playGrid");
 const emptyState = document.getElementById("emptyState");
 const searchInput = document.getElementById("searchInput");
 const outlineList = document.getElementById("outlineList");
-const outlinePanel = document.getElementById("outlinePanel");
-const outlineTitle = document.getElementById("outlineTitle");
 const breadcrumbEl = document.getElementById("breadcrumb");
 
 searchInput.addEventListener("input", () => {
@@ -274,13 +272,13 @@ function renderBreadcrumb() {
 
 function renderCategoryRoot() {
     emptyState.hidden = true;
+    playGrid.classList.add("category-grid");
     const cats = ["offense", "defense"];
     playGrid.innerHTML = cats.map(c => {
         const plays = currentAll.filter(p => p.category === c);
         const folderCount = foldersForCategory(c).length + (unfiledCount(c) > 0 ? 1 : 0);
         return `
             <article class="folder-card category-card" data-category="${c}">
-                <div class="folder-icon">${c === "offense" ? "🧡" : "💙"}</div>
                 <h3 class="folder-name">${CATEGORY_LABELS[c]}</h3>
                 <p class="folder-meta">폴더 ${folderCount}개 · 전술 ${plays.length}개</p>
             </article>
@@ -299,6 +297,7 @@ function renderCategoryRoot() {
 // ---- Render: folder list within a category ----
 
 function renderFolderList(category) {
+    playGrid.classList.remove("category-grid");
     const folders = foldersForCategory(category);
     const unfiled = unfiledCount(category);
     emptyState.hidden = !(folders.length === 0 && unfiled === 0);
@@ -309,7 +308,6 @@ function renderFolderList(category) {
         return `
             <article class="folder-card" data-folder="${escapeHtml(f)}">
                 <button class="icon-btn folder-delete" title="폴더 삭제" ${count > 0 ? "hidden" : ""}>&times;</button>
-                <div class="folder-icon">📁</div>
                 <h3 class="folder-name">${escapeHtml(typeLabel(f))}</h3>
                 <p class="folder-meta">전술 ${count}개</p>
             </article>
@@ -318,7 +316,6 @@ function renderFolderList(category) {
 
     const unfiledCard = unfiled > 0 ? `
         <article class="folder-card" data-folder="">
-            <div class="folder-icon">📂</div>
             <h3 class="folder-name">미분류</h3>
             <p class="folder-meta">전술 ${unfiled}개</p>
         </article>
@@ -326,8 +323,7 @@ function renderFolderList(category) {
 
     const addCard = `
         <button type="button" class="folder-card folder-add" id="addFolderCard">
-            <div class="folder-icon">+</div>
-            <h3 class="folder-name">새 폴더</h3>
+            <h3 class="folder-name">+ 새 폴더</h3>
         </button>
     `;
 
@@ -363,6 +359,7 @@ function deleteFolder(category, name) {
 // ---- Render: plays inside a folder / search results ----
 
 function renderPlaysInFolder(category, folder) {
+    playGrid.classList.remove("category-grid");
     const list = playsInFolder(category, folder);
     emptyState.hidden = list.length !== 0;
     emptyState.textContent = "이 폴더에는 아직 전술이 없어요.";
@@ -371,6 +368,7 @@ function renderPlaysInFolder(category, folder) {
 }
 
 function renderSearchResults() {
+    playGrid.classList.remove("category-grid");
     const list = currentAll.filter(matchesSearch);
     emptyState.hidden = list.length !== 0;
     emptyState.textContent = "검색 결과가 없어요.";
@@ -430,127 +428,212 @@ function deletePlay(id) {
     renderAll();
 }
 
-// ---- Right-side outline panel (folders or plays, depending on nav) ----
+// ---- Right-side outline panel: a persistent expandable tree ----
 
-function renderOutlinePanel() {
-    if (state.search || !nav.category) {
-        outlinePanel.hidden = true;
-        return;
-    }
-    outlinePanel.hidden = false;
-    if (!nav.folder) {
-        renderFolderOutline(nav.category);
-    } else {
-        renderPlayOutline(nav.category, nav.folder);
+let treeExpanded = { offense: false, defense: false, folders: {} };
+
+function expandToNav() {
+    if (nav.category) {
+        treeExpanded[nav.category] = true;
+        if (nav.folder !== null) {
+            treeExpanded.folders[`${nav.category}::${nav.folder}`] = true;
+        }
     }
 }
 
-let dragFolderName = null;
+function renderOutlinePanel() {
+    expandToNav();
+    renderTree();
+}
 
-function renderFolderOutline(category) {
-    outlineTitle.innerHTML = `폴더 목록 <span class="hint">드래그해서 순서 변경</span>`;
+function renderTree() {
+    outlineList.innerHTML = ["offense", "defense"].map(categoryNodeHtml).join("");
+    wireTree();
+}
+
+function categoryNodeHtml(category) {
+    const expanded = treeExpanded[category];
+    const plays = currentAll.filter(p => p.category === category);
     const folders = foldersForCategory(category);
-    outlineList.innerHTML = folders.map((f, i) => `
-        <li class="outline-item" draggable="true" data-folder="${escapeHtml(f)}">
-            <span class="drag-handle">⋮⋮</span>
-            <span class="outline-index">${i + 1}</span>
-            <span class="outline-title">${escapeHtml(typeLabel(f))}</span>
-            <button class="icon-btn outline-delete" title="삭제" ${playsInFolder(category, f).length > 0 ? "hidden" : ""}>&times;</button>
+    const unfiled = unfiledCount(category);
+    const hasChildren = folders.length > 0 || unfiled > 0;
+    const childrenHtml = expanded && hasChildren ? `
+        <ul class="tree-children">
+            ${folders.map(f => folderNodeHtml(category, f, false)).join("")}
+            ${unfiled > 0 ? folderNodeHtml(category, "", true) : ""}
+        </ul>
+    ` : "";
+    return `
+        <li class="tree-node">
+            <div class="tree-row">
+                <button class="tree-toggle ${hasChildren ? "" : "leaf"}" data-toggle="cat" data-category="${category}">${expanded ? "▾" : "▸"}</button>
+                <span class="tree-label" data-nav-cat="${category}">${CATEGORY_LABELS[category]}</span>
+                <span class="tree-count">${plays.length}</span>
+            </div>
+            ${childrenHtml}
         </li>
-    `).join("");
+    `;
+}
 
-    outlineList.querySelectorAll(".outline-item").forEach(li => {
+function folderNodeHtml(category, folder, isUnfiled) {
+    const key = `${category}::${folder}`;
+    const expanded = !!treeExpanded.folders[key];
+    const plays = playsInFolder(category, folder);
+    const label = isUnfiled ? "미분류" : typeLabel(folder);
+    const draggable = !isUnfiled;
+    const childrenHtml = expanded && plays.length > 0 ? `
+        <ul class="tree-children">
+            ${plays.map(p => playNodeHtml(p)).join("")}
+        </ul>
+    ` : "";
+    return `
+        <li class="tree-node tree-folder" draggable="${draggable}" data-category="${category}" data-folder="${escapeHtml(folder)}">
+            <div class="tree-row">
+                <button class="tree-toggle ${plays.length > 0 ? "" : "leaf"}" data-toggle="folder" data-category="${category}" data-folder="${escapeHtml(folder)}">${expanded ? "▾" : "▸"}</button>
+                ${draggable ? '<span class="drag-handle">⋮⋮</span>' : ""}
+                <span class="tree-label" data-nav-category="${category}" data-nav-folder="${escapeHtml(folder)}">${escapeHtml(label)}</span>
+                <span class="tree-count">${plays.length}</span>
+                ${draggable ? `<button class="icon-btn tree-delete" data-delete-folder="${escapeHtml(folder)}" data-category="${category}" title="삭제" ${plays.length > 0 ? "hidden" : ""}>&times;</button>` : ""}
+            </div>
+            ${childrenHtml}
+        </li>
+    `;
+}
+
+function playNodeHtml(play) {
+    return `
+        <li class="tree-node tree-play" draggable="true" data-id="${play.id}" data-category="${play.category}" data-folder="${escapeHtml(play.type || "")}">
+            <div class="tree-row tree-play-row">
+                <span class="drag-handle">⋮⋮</span>
+                <span class="tree-label" data-nav-play="${play.id}">${escapeHtml(play.title)}</span>
+                <button class="icon-btn tree-delete" data-delete-play="${play.id}" title="삭제">&times;</button>
+            </div>
+        </li>
+    `;
+}
+
+let dragInfo = null;
+
+function wireTree() {
+    outlineList.querySelectorAll("[data-toggle]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (btn.dataset.toggle === "cat") {
+                treeExpanded[btn.dataset.category] = !treeExpanded[btn.dataset.category];
+            } else {
+                const key = `${btn.dataset.category}::${btn.dataset.folder}`;
+                treeExpanded.folders[key] = !treeExpanded.folders[key];
+            }
+            renderTree();
+        });
+    });
+
+    outlineList.querySelectorAll("[data-nav-cat]").forEach(el => {
+        el.addEventListener("click", () => {
+            clearSearch();
+            nav.category = el.dataset.navCat;
+            nav.folder = null;
+            treeExpanded[nav.category] = true;
+            renderMain();
+        });
+    });
+
+    outlineList.querySelectorAll("[data-nav-folder]").forEach(el => {
+        el.addEventListener("click", () => {
+            clearSearch();
+            const category = el.dataset.navCategory;
+            const folder = el.dataset.navFolder;
+            nav.category = category;
+            nav.folder = folder;
+            treeExpanded[category] = true;
+            treeExpanded.folders[`${category}::${folder}`] = true;
+            renderMain();
+        });
+    });
+
+    outlineList.querySelectorAll("[data-nav-play]").forEach(el => {
+        el.addEventListener("click", () => openPlay(el.dataset.navPlay, 0));
+    });
+
+    outlineList.querySelectorAll("[data-delete-folder]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            deleteFolder(btn.dataset.category, btn.dataset.deleteFolder);
+        });
+    });
+
+    outlineList.querySelectorAll("[data-delete-play]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            deletePlay(btn.dataset.deletePlay);
+        });
+    });
+
+    outlineList.querySelectorAll('.tree-folder[draggable="true"]').forEach(li => {
+        const category = li.dataset.category;
         const name = li.dataset.folder;
 
-        li.addEventListener("click", (e) => {
-            if (e.target.closest(".outline-delete")) return;
-            nav.folder = name;
+        li.addEventListener("dragstart", (e) => {
+            e.stopPropagation();
+            dragInfo = { type: "folder", category, name };
+            li.classList.add("dragging");
+        });
+
+        li.addEventListener("dragend", () => {
+            li.classList.remove("dragging");
+            dragInfo = null;
+            saveUserState();
             renderMain();
         });
 
-        li.querySelector(".outline-delete")?.addEventListener("click", (e) => {
-            e.stopPropagation();
-            deleteFolder(category, name);
-        });
-
-        li.addEventListener("dragstart", () => {
-            dragFolderName = name;
-            li.classList.add("dragging");
-        });
-
-        li.addEventListener("dragend", () => {
-            li.classList.remove("dragging");
-            dragFolderName = null;
-            saveUserState();
-            renderFolderList(category);
-        });
-
         li.addEventListener("dragover", (e) => {
+            if (!dragInfo || dragInfo.type !== "folder" || dragInfo.category !== category) return;
             e.preventDefault();
-            if (!dragFolderName || dragFolderName === name) return;
+            e.stopPropagation();
+            if (dragInfo.name === name) return;
             const arr = userState.folderOrder[category];
-            const from = arr.indexOf(dragFolderName);
+            const from = arr.indexOf(dragInfo.name);
             const to = arr.indexOf(name);
             if (from === -1 || to === -1 || from === to) return;
             arr.splice(from, 1);
-            arr.splice(to, 0, dragFolderName);
-            renderFolderOutline(category);
+            arr.splice(to, 0, dragInfo.name);
+            renderTree();
         });
     });
-}
 
-let dragId = null;
-
-function renderPlayOutline(category, folder) {
-    outlineTitle.innerHTML = `전술 목록 <span class="hint">드래그해서 순서 변경</span>`;
-    const list = playsInFolder(category, folder);
-    outlineList.innerHTML = list.map((play, i) => `
-        <li class="outline-item" draggable="true" data-id="${play.id}">
-            <span class="drag-handle">⋮⋮</span>
-            <span class="outline-index">${i + 1}</span>
-            <span class="outline-title">${escapeHtml(play.title)}</span>
-            <button class="icon-btn outline-delete" title="삭제">&times;</button>
-        </li>
-    `).join("");
-
-    outlineList.querySelectorAll(".outline-item").forEach(li => {
+    outlineList.querySelectorAll('.tree-play[draggable="true"]').forEach(li => {
         const id = li.dataset.id;
+        const category = li.dataset.category;
+        const folder = li.dataset.folder;
 
-        li.addEventListener("click", (e) => {
-            if (e.target.closest(".outline-delete")) return;
-            openPlay(id, 0);
-        });
-
-        li.querySelector(".outline-delete").addEventListener("click", (e) => {
+        li.addEventListener("dragstart", (e) => {
             e.stopPropagation();
-            deletePlay(id);
-        });
-
-        li.addEventListener("dragstart", () => {
-            dragId = id;
+            dragInfo = { type: "play", id, category, folder };
             li.classList.add("dragging");
         });
 
         li.addEventListener("dragend", () => {
             li.classList.remove("dragging");
-            dragId = null;
+            dragInfo = null;
             saveUserState();
-            renderPlaysInFolder(category, folder);
+            renderMain();
         });
 
         li.addEventListener("dragover", (e) => {
+            if (!dragInfo || dragInfo.type !== "play" || dragInfo.category !== category || dragInfo.folder !== folder) return;
             e.preventDefault();
-            if (!dragId || dragId === id) return;
-            const from = userState.order.indexOf(dragId);
+            e.stopPropagation();
+            if (dragInfo.id === id) return;
+            const from = userState.order.indexOf(dragInfo.id);
             const to = userState.order.indexOf(id);
             if (from === -1 || to === -1 || from === to) return;
             userState.order.splice(from, 1);
-            userState.order.splice(to, 0, dragId);
-            const fromIdx = currentAll.findIndex(p => p.id === dragId);
+            userState.order.splice(to, 0, dragInfo.id);
+            const fromIdx = currentAll.findIndex(p => p.id === dragInfo.id);
             const [moved] = currentAll.splice(fromIdx, 1);
             const toIdx = currentAll.findIndex(p => p.id === id);
             currentAll.splice(toIdx, 0, moved);
-            renderPlayOutline(category, folder);
+            renderTree();
         });
     });
 }
