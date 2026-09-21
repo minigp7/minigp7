@@ -16,30 +16,33 @@
             <div class="search-wrap">
                 <input id="searchInput" type="text" placeholder="제목, 태그, 메모로 검색...">
             </div>
-            <button id="guideBtn" class="btn btn-outline">클립 추가 방법</button>
+            <button id="exportBtn" class="btn btn-ghost">내보내기</button>
+            <button id="guideBtn" class="btn btn-outline">도움말</button>
+        </div>
+        <div class="filter-bar">
+            <div class="filter-item">
+                <label class="check"><input type="checkbox" class="category-filter" value="offense" checked> 공격</label>
+                <label class="check"><input type="checkbox" class="category-filter" value="defense" checked> 수비</label>
+            </div>
+            <div id="typeFilterList" class="type-filter-list"></div>
+            <button id="resetFilters" class="btn btn-ghost btn-sm">필터 초기화</button>
         </div>
     </header>
 
     <main class="layout">
-        <aside class="filters">
-            <div class="filter-group">
-                <h2>구분</h2>
-                <label class="check"><input type="checkbox" class="category-filter" value="offense" checked> 공격</label>
-                <label class="check"><input type="checkbox" class="category-filter" value="defense" checked> 수비</label>
-            </div>
-            <div class="filter-group">
-                <h2>세부 유형</h2>
-                <div id="typeFilterList" class="type-filter-list"></div>
-            </div>
-            <button id="resetFilters" class="btn btn-ghost">필터 초기화</button>
-        </aside>
-
-        <section class="clip-area">
+        <section class="play-area">
             <p id="resultCount" class="result-count"></p>
-            <div id="clipGrid" class="clip-grid"></div>
-            <p id="emptyState" class="empty-state" hidden>조건에 맞는 클립이 없어요.</p>
+            <div id="playGrid" class="play-grid"></div>
+            <p id="emptyState" class="empty-state" hidden>조건에 맞는 전술이 없어요.</p>
         </section>
+
+        <aside class="outline-panel">
+            <h2>전술 목록 <span class="hint">드래그해서 순서 변경</span></h2>
+            <ul id="outlineList" class="outline-list"></ul>
+        </aside>
     </main>
+
+    <button id="addPlayFab" class="fab-btn">+ 새 전술 / 영상 추가</button>
 
     <!-- Clip Player Modal -->
     <div id="clipModal" class="modal" hidden>
@@ -53,11 +56,68 @@
             <div class="clip-info">
                 <div class="clip-info-head">
                     <h2 id="modalTitle"></h2>
-                    <button id="replayBtn" class="btn btn-outline">다시보기</button>
+                    <button id="replayBtn" class="btn btn-outline btn-sm">다시보기</button>
                 </div>
                 <div id="modalBadges" class="badges"></div>
+                <div id="exampleSwitcher" class="example-switcher"></div>
+                <p id="currentExampleLabel" class="current-example-label"></p>
+                <button id="addExampleBtn" class="btn btn-ghost btn-sm">+ 이 전술에 예시 영상 추가</button>
                 <p id="modalNotes" class="notes"></p>
             </div>
+        </div>
+    </div>
+
+    <!-- Add Play Modal -->
+    <div id="addPlayModal" class="modal" hidden>
+        <div class="modal-backdrop" id="addPlayBackdrop"></div>
+        <div class="modal-panel form-panel">
+            <button id="closeAddPlay" class="modal-close" aria-label="닫기">&times;</button>
+            <h2>새 전술 추가</h2>
+            <form id="addPlayForm">
+                <label>전술 이름
+                    <input type="text" name="title" placeholder="예: Horns 세트 오펜스" required>
+                </label>
+                <div class="form-row">
+                    <label>구분
+                        <select name="category">
+                            <option value="offense">공격</option>
+                            <option value="defense">수비</option>
+                        </select>
+                    </label>
+                    <label>세부 유형
+                        <input type="text" name="type" list="typeSuggestions" placeholder="예: horns, pick-and-roll" required>
+                        <datalist id="typeSuggestions"></datalist>
+                    </label>
+                </div>
+                <label>영상 링크 (유튜브)
+                    <input type="text" name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
+                </label>
+                <label>영상 이름
+                    <input type="text" name="exampleLabel" placeholder="예: 기본형 (비워두면 자동으로 번호만 붙어요)">
+                </label>
+                <label>메모 (선택)
+                    <textarea name="notes" rows="2" placeholder="이 전술에 대한 메모"></textarea>
+                </label>
+                <button type="submit" class="btn btn-primary">추가하기</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Example Modal -->
+    <div id="addExampleModal" class="modal" hidden>
+        <div class="modal-backdrop" id="addExampleBackdrop"></div>
+        <div class="modal-panel form-panel">
+            <button id="closeAddExample" class="modal-close" aria-label="닫기">&times;</button>
+            <h2>예시 영상 추가</h2>
+            <form id="addExampleForm">
+                <label>영상 링크 (유튜브)
+                    <input type="text" name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
+                </label>
+                <label>영상 이름
+                    <input type="text" name="exampleLabel" placeholder="예: 스플릿 변형 (비워두면 자동으로 번호만 붙어요)">
+                </label>
+                <button type="submit" class="btn btn-primary">추가하기</button>
+            </form>
         </div>
     </div>
 
@@ -66,51 +126,13 @@
         <div class="modal-backdrop" id="guideBackdrop"></div>
         <div class="modal-panel guide-panel">
             <button id="closeGuide" class="modal-close" aria-label="닫기">&times;</button>
-            <h2>클립 추가 방법</h2>
-            <p><code>data/clips.json</code> 파일을 열어 아래 형식으로 항목을 추가하면 사이트에 자동으로 반영돼요.</p>
-
-            <h3>1) 유튜브 영상으로 추가하기</h3>
-            <pre>{
-  "id": "unique-id-1",
-  "title": "클립 제목",
-  "category": "offense",
-  "type": "pick-and-roll",
-  "tags": ["픽앤롤", "하이볼"],
-  "team": "우리팀",
-  "notes": "여기에 메모를 적어요",
-  "source": "youtube",
-  "youtubeId": "영상URL의 v= 뒤 11자리",
-  "start": 95,
-  "end": 118,
-  "dateAdded": "2026-09-21"
-}</pre>
-            <ul>
-                <li><b>youtubeId</b>: 유튜브 주소 <code>youtube.com/watch?v=VIDEOID</code> 에서 <code>VIDEOID</code> 부분.</li>
-                <li><b>start / end</b>: 클립 구간을 초(second) 단위로 입력. 예: 1분 35초는 95.</li>
-                <li><b>category</b>: <code>offense</code>(공격) 또는 <code>defense</code>(수비).</li>
-                <li><b>type</b>: 세부 전술 유형을 영문 key로. 자유롭게 새 유형을 만들어도 되고, 필터 목록에 자동으로 나타나요.</li>
-            </ul>
-
-            <h3>2) 직접 촬영한 영상으로 추가하기</h3>
-            <p><code>videos/</code> 폴더에 mp4 파일을 넣고 아래처럼 작성하세요.</p>
-            <pre>{
-  "id": "unique-id-2",
-  "title": "클립 제목",
-  "category": "defense",
-  "type": "zone-defense",
-  "tags": ["2-3존"],
-  "team": "",
-  "notes": "메모",
-  "source": "local",
-  "file": "my-clip.mp4",
-  "start": 0,
-  "end": 20,
-  "dateAdded": "2026-09-21"
-}</pre>
-            <p class="hint">⚠️ GitHub은 큰 파일 업로드에 제한이 있어요. 가능하면 미리 필요한 구간만 짧게 잘라서(수 MB 수준) 올리는 걸 추천해요.</p>
-
-            <h3>3) 저장 후 반영</h3>
-            <p>파일을 저장하고 커밋/푸시하면 사이트에 반영돼요. 로컬에서 미리보려면 <code>basketball</code> 폴더에서 간단한 로컬 서버(예: <code>python3 -m http.server</code>)를 켜고 브라우저로 열어보세요.</p>
+            <h2>사용 방법</h2>
+            <h3>영상 추가하기</h3>
+            <p>오른쪽 아래 <b>+ 새 전술 / 영상 추가</b> 버튼을 누르고 유튜브 링크와 이름만 입력하면 바로 추가돼요. 이미 있는 전술(예: Horns)에 다른 예시 영상을 더 넣고 싶으면, 카드나 재생 화면의 <b>+ 이 전술에 예시 영상 추가</b> 버튼을 쓰세요. 번호 버튼(1, 2, 3...)을 누르면 그 예시 영상이 재생돼요.</p>
+            <h3>순서 바꾸기 / 삭제하기</h3>
+            <p>오른쪽 <b>전술 목록</b> 패널에서 드래그해서 순서를 바꿀 수 있어요. 각 항목의 × 버튼으로 삭제할 수 있어요.</p>
+            <h3>⚠️ 브라우저에만 저장돼요</h3>
+            <p>여기서 추가/삭제/정렬한 내용은 <b>지금 이 브라우저에만</b> 저장돼요 (localStorage). 다른 기기나 다른 사람에게는 보이지 않아요. 모두에게 영구 반영하려면 상단의 <b>내보내기</b> 버튼으로 최신 상태를 <code>plays.json</code> 파일로 받아서, 저장소의 <code>basketball/data/plays.json</code> 파일을 그걸로 교체하고 커밋/푸시하세요.</p>
         </div>
     </div>
 
