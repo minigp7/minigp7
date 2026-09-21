@@ -3,6 +3,38 @@ const CATEGORY_LABELS = {
     defense: "수비"
 };
 
+// ---- Password gate ----
+
+const APP_PASSWORD = "1357";
+
+const passwordGate = document.getElementById("passwordGate");
+const passwordForm = document.getElementById("passwordForm");
+const passwordInput = document.getElementById("passwordInput");
+const passwordError = document.getElementById("passwordError");
+
+passwordForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (passwordInput.value === APP_PASSWORD) {
+        passwordGate.hidden = true;
+    } else {
+        passwordError.hidden = false;
+        passwordInput.value = "";
+        passwordInput.focus();
+    }
+});
+passwordInput.focus();
+
+function confirmWithPassword(message) {
+    if (!confirm(message)) return false;
+    const pw = prompt("삭제하려면 비밀번호를 입력하세요");
+    if (pw === null) return false;
+    if (pw !== APP_PASSWORD) {
+        alert("비밀번호가 틀렸어요.");
+        return false;
+    }
+    return true;
+}
+
 const TYPE_LABELS = {
     "horns": "혼즈",
     "pick-and-roll": "픽앤롤",
@@ -263,6 +295,7 @@ function renderBreadcrumb() {
             clearSearch();
             if (btn.dataset.nav === "root") nav = { category: null, folder: null };
             else if (btn.dataset.nav === "category") nav.folder = null;
+            expandToNav();
             renderMain();
         });
     });
@@ -289,6 +322,7 @@ function renderCategoryRoot() {
         card.addEventListener("click", () => {
             nav.category = card.dataset.category;
             nav.folder = null;
+            expandToNav();
             renderMain();
         });
     });
@@ -333,6 +367,7 @@ function renderFolderList(category) {
         card.addEventListener("click", (e) => {
             if (e.target.closest(".folder-delete")) return;
             nav.folder = card.dataset.folder;
+            expandToNav();
             renderMain();
         });
         card.querySelector(".folder-delete")?.addEventListener("click", (e) => {
@@ -349,7 +384,7 @@ function deleteFolder(category, name) {
         alert("폴더 안에 전술이 있어서 삭제할 수 없어요. 먼저 전술을 옮기거나 삭제해주세요.");
         return;
     }
-    if (!confirm("이 폴더를 삭제할까요?")) return;
+    if (!confirmWithPassword("이 폴더를 삭제할까요?")) return;
     userState.customFolders[category] = (userState.customFolders[category] || []).filter(n => n !== name);
     userState.folderOrder[category] = (userState.folderOrder[category] || []).filter(n => n !== name);
     saveUserState();
@@ -422,7 +457,7 @@ function playCardHtml(play) {
 }
 
 function deletePlay(id) {
-    if (!confirm("이 전술을 삭제할까요? (이 브라우저에서만 사라져요)")) return;
+    if (!confirmWithPassword("이 전술을 삭제할까요? (이 브라우저에서만 사라져요)")) return;
     userState.removedPlays.push(id);
     saveUserState();
     renderAll();
@@ -442,7 +477,6 @@ function expandToNav() {
 }
 
 function renderOutlinePanel() {
-    expandToNav();
     renderTree();
 }
 
@@ -504,9 +538,9 @@ function playNodeHtml(play) {
     return `
         <li class="tree-node tree-play" draggable="true" data-id="${play.id}" data-category="${play.category}" data-folder="${escapeHtml(play.type || "")}">
             <div class="tree-row tree-play-row">
+                <span class="tree-toggle leaf"></span>
                 <span class="drag-handle">⋮⋮</span>
                 <span class="tree-label" data-nav-play="${play.id}">${escapeHtml(play.title)}</span>
-                <button class="icon-btn tree-delete" data-delete-play="${play.id}" title="삭제">&times;</button>
             </div>
         </li>
     `;
@@ -559,13 +593,6 @@ function wireTree() {
         btn.addEventListener("click", (e) => {
             e.stopPropagation();
             deleteFolder(btn.dataset.category, btn.dataset.deleteFolder);
-        });
-    });
-
-    outlineList.querySelectorAll("[data-delete-play]").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            deletePlay(btn.dataset.deletePlay);
         });
     });
 
@@ -867,6 +894,7 @@ addPlayForm.addEventListener("submit", (e) => {
     addPlayModal.hidden = true;
     nav.category = play.category;
     nav.folder = play.type || "";
+    expandToNav();
     clearSearch();
     renderAll();
 });
@@ -946,6 +974,7 @@ addFolderForm.addEventListener("submit", (e) => {
     addFolderModal.hidden = true;
     nav.category = addFolderCategory;
     nav.folder = name;
+    expandToNav();
     renderAll();
 });
 

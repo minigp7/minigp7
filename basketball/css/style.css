@@ -35,6 +35,72 @@ a {
     color: inherit;
 }
 
+.password-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+}
+
+.password-gate:not([hidden]) {
+    display: flex;
+}
+
+.password-form {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px 28px;
+    width: 280px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.password-form h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.password-form h2 em {
+    font-style: normal;
+    background: linear-gradient(120deg, var(--accent-a), var(--accent-b));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.password-form p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+#passwordInput {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 1.1rem;
+    text-align: center;
+    letter-spacing: 0.3em;
+    font-family: inherit;
+}
+
+#passwordInput:focus {
+    outline: none;
+    border-color: var(--accent-a);
+}
+
+.password-error {
+    color: var(--accent-b) !important;
+}
+
 .site-header {
     position: sticky;
     top: 0;
