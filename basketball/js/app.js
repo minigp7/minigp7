@@ -63,6 +63,24 @@ function extractYoutube(url) {
     }
 }
 
+function parseFlexibleTime(input) {
+    const raw = (input || "").trim();
+    if (!raw) return null;
+    if (raw.includes(":")) {
+        const parts = raw.split(":").map(p => parseInt(p, 10) || 0);
+        return parts.reduce((sec, p) => sec * 60 + p, 0);
+    }
+    if (/^\d+$/.test(raw)) return parseInt(raw, 10);
+    return parseTimeParam(raw);
+}
+
+function formatTime(sec) {
+    if (sec === null || sec === undefined) return null;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+}
+
 // ---- Storage ----
 
 const STORAGE_KEY = "bball_tactics_v1";
@@ -409,8 +427,12 @@ function renderExampleSwitcher() {
             playActiveExample();
         });
     });
-    const label = activePlay.examples[activeExampleIndex].label;
-    currentExampleLabel.textContent = label ? `${activeExampleIndex + 1}번: ${label}` : `${activeExampleIndex + 1}번`;
+    const ex = activePlay.examples[activeExampleIndex];
+    const base = ex.label ? `${activeExampleIndex + 1}번: ${ex.label}` : `${activeExampleIndex + 1}번`;
+    const startStr = formatTime(ex.start || 0);
+    const endStr = formatTime(ex.end);
+    const range = (ex.start || ex.end) ? ` (${startStr}~${endStr || ""})` : "";
+    currentExampleLabel.textContent = base + range;
 }
 
 function playActiveExample() {
@@ -495,6 +517,17 @@ function playLocalClip(clip) {
 
 // ---- Add Play ----
 
+function resolveClipTiming(fd, fallbackStart) {
+    const startInput = parseFlexibleTime(fd.get("startTime"));
+    const endInput = parseFlexibleTime(fd.get("endTime"));
+    const start = startInput !== null ? startInput : fallbackStart;
+    if (endInput !== null && endInput <= start) {
+        alert("종료 시간은 시작 시간보다 커야 해요.");
+        return null;
+    }
+    return { start, end: endInput };
+}
+
 const addPlayModal = document.getElementById("addPlayModal");
 const addPlayForm = document.getElementById("addPlayForm");
 
@@ -510,6 +543,8 @@ addPlayForm.addEventListener("submit", (e) => {
         alert("유튜브 링크를 확인해주세요.");
         return;
     }
+    const timing = resolveClipTiming(fd, parsed.start);
+    if (!timing) return;
     const play = {
         id: uid("play"),
         title: fd.get("title").trim(),
@@ -523,8 +558,8 @@ addPlayForm.addEventListener("submit", (e) => {
             label: fd.get("exampleLabel").trim(),
             source: "youtube",
             youtubeId: parsed.videoId,
-            start: parsed.start,
-            end: null
+            start: timing.start,
+            end: timing.end
         }],
         dateAdded: new Date().toISOString().slice(0, 10)
     };
@@ -559,13 +594,15 @@ addExampleForm.addEventListener("submit", (e) => {
         alert("유튜브 링크를 확인해주세요.");
         return;
     }
+    const timing = resolveClipTiming(fd, parsed.start);
+    if (!timing) return;
     const example = {
         id: uid("ex"),
         label: fd.get("exampleLabel").trim(),
         source: "youtube",
         youtubeId: parsed.videoId,
-        start: parsed.start,
-        end: null
+        start: timing.start,
+        end: timing.end
     };
     if (!userState.examplesByPlay[addExampleTargetId]) userState.examplesByPlay[addExampleTargetId] = [];
     userState.examplesByPlay[addExampleTargetId].push(example);

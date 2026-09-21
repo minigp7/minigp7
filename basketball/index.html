@@ -16,7 +16,6 @@
                 <span class="brand-mark">🏀</span>
                 <div class="brand-text">
                     <span class="brand-title">Basketball <em>Strategy</em></span>
-                    <span class="brand-sub">농구 전술 클립 정리</span>
                 </div>
             </div>
             <div class="header-actions">
@@ -114,6 +113,14 @@
                 <label>영상 링크 (유튜브)
                     <input type="text" name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
                 </label>
+                <div class="form-row">
+                    <label>시작 시간 (선택)
+                        <input type="text" name="startTime" placeholder="예: 1:35 또는 95">
+                    </label>
+                    <label>종료 시간 (선택)
+                        <input type="text" name="endTime" placeholder="예: 1:50 또는 110">
+                    </label>
+                </div>
                 <label>영상 이름
                     <input type="text" name="exampleLabel" placeholder="예: 기본형 (비워두면 자동으로 번호만 붙어요)">
                 </label>
@@ -132,6 +139,14 @@
                 <label>영상 링크 (유튜브)
                     <input type="text" name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
                 </label>
+                <div class="form-row">
+                    <label>시작 시간 (선택)
+                        <input type="text" name="startTime" placeholder="예: 1:35 또는 95">
+                    </label>
+                    <label>종료 시간 (선택)
+                        <input type="text" name="endTime" placeholder="예: 1:50 또는 110">
+                    </label>
+                </div>
                 <label>영상 이름
                     <input type="text" name="exampleLabel" placeholder="예: 스플릿 변형 (비워두면 자동으로 번호만 붙어요)">
                 </label>
@@ -148,6 +163,8 @@
             <h2>사용 방법</h2>
             <h3>영상 추가하기</h3>
             <p>오른쪽 아래 <b>+ 새 전술 / 영상 추가</b> 버튼을 누르고 유튜브 링크와 이름만 입력하면 바로 추가돼요. 이미 있는 전술(예: Horns)에 다른 예시 영상을 더 넣고 싶으면, 카드나 재생 화면의 <b>+ 이 전술에 예시 영상 추가</b> 버튼을 쓰세요. 번호 버튼(1, 2, 3...)을 누르면 그 예시 영상이 재생돼요.</p>
+            <h3>클립 구간(시작/끝) 지정하기</h3>
+            <p>영상 전체가 아니라 원하는 구간만 재생되게 하려면 <b>시작 시간</b>과 <b>종료 시간</b>을 적어주세요. <code>1:35</code>처럼 분:초로 적거나 <code>95</code>처럼 초 단위 숫자로 적어도 돼요. 비워두면 시작은 영상 처음부터(또는 링크에 있는 시간), 끝은 영상이 끝날 때까지 재생돼요.</p>
             <h3>순서 바꾸기 / 삭제하기</h3>
             <p>오른쪽 <b>전술 목록</b> 패널에서 드래그해서 순서를 바꿀 수 있어요. 각 항목의 × 버튼으로 삭제할 수 있어요.</p>
             <h3>⚠️ 브라우저에만 저장돼요</h3>
