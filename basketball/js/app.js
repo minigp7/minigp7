@@ -19,6 +19,7 @@ const TYPE_LABELS = {
 };
 
 function typeLabel(type) {
+    if (!type) return "미분류";
     return TYPE_LABELS[type] || type;
 }
 
@@ -86,7 +87,16 @@ function formatTime(sec) {
 const STORAGE_KEY = "bball_tactics_v1";
 
 function defaultState() {
-    return { plays: [], examplesByPlay: {}, order: [], removedPlays: [], removedExamples: {}, notesOverride: {} };
+    return {
+        plays: [],
+        examplesByPlay: {},
+        order: [],
+        removedPlays: [],
+        removedExamples: {},
+        notesOverride: {},
+        customFolders: { offense: [], defense: [] },
+        folderOrder: { offense: [], defense: [] }
+    };
 }
 
 function loadUserState() {
@@ -94,7 +104,10 @@ function loadUserState() {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return defaultState();
         const parsed = JSON.parse(raw);
-        return { ...defaultState(), ...parsed };
+        const merged = { ...defaultState(), ...parsed };
+        merged.customFolders = { ...defaultState().customFolders, ...(parsed.customFolders || {}) };
+        merged.folderOrder = { ...defaultState().folderOrder, ...(parsed.folderOrder || {}) };
+        return merged;
     } catch (e) {
         return defaultState();
     }
@@ -113,6 +126,7 @@ let userState = loadUserState();
 let currentAll = [];
 let activePlay = null;
 let activeExampleIndex = 0;
+let nav = { category: null, folder: null };
 
 // ---- Merge base + user data ----
 
@@ -154,93 +168,217 @@ fetch("data/plays.json")
         console.error(err);
     });
 
-// ---- Filters ----
+// ---- Elements ----
 
-const state = {
-    categories: new Set(["offense", "defense"]),
-    types: new Set(),
-    search: ""
-};
+const state = { search: "" };
 
 const playGrid = document.getElementById("playGrid");
-const resultCount = document.getElementById("resultCount");
 const emptyState = document.getElementById("emptyState");
-const typeFilterList = document.getElementById("typeFilterList");
 const searchInput = document.getElementById("searchInput");
 const outlineList = document.getElementById("outlineList");
-
-function buildTypeFilters(all) {
-    const types = [...new Set(all.map(p => p.type))];
-    state.types = new Set(types);
-    typeFilterList.innerHTML = types.map(t => `
-        <label class="check">
-            <input type="checkbox" class="type-filter" value="${t}" checked>
-            ${typeLabel(t)}
-        </label>
-    `).join("");
-    typeFilterList.querySelectorAll(".type-filter").forEach(el => {
-        el.addEventListener("change", () => {
-            if (el.checked) state.types.add(el.value);
-            else state.types.delete(el.value);
-            renderGrid();
-        });
-    });
-
-    const datalist = document.getElementById("typeSuggestions");
-    datalist.innerHTML = Object.keys(TYPE_LABELS).map(t => `<option value="${t}">${typeLabel(t)}</option>`).join("");
-}
-
-document.querySelectorAll(".category-filter").forEach(el => {
-    el.addEventListener("change", () => {
-        if (el.checked) state.categories.add(el.value);
-        else state.categories.delete(el.value);
-        renderGrid();
-    });
-});
+const outlinePanel = document.getElementById("outlinePanel");
+const outlineTitle = document.getElementById("outlineTitle");
+const breadcrumbEl = document.getElementById("breadcrumb");
 
 searchInput.addEventListener("input", () => {
     state.search = searchInput.value.trim().toLowerCase();
-    renderGrid();
+    renderMain();
 });
 
-document.getElementById("resetFilters").addEventListener("click", () => {
-    document.querySelectorAll(".category-filter").forEach(el => el.checked = true);
-    document.querySelectorAll(".type-filter").forEach(el => el.checked = true);
-    searchInput.value = "";
-    state.categories = new Set(["offense", "defense"]);
-    state.types = new Set(currentAll.map(p => p.type));
+function clearSearch() {
     state.search = "";
-    renderGrid();
-});
-
-function matchesFilter(play) {
-    if (!state.categories.has(play.category)) return false;
-    if (!state.types.has(play.type)) return false;
-    if (state.search) {
-        const haystack = [play.title, play.notes, play.team, ...(play.tags || []), ...(play.examples || []).map(e => e.label)]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-        if (!haystack.includes(state.search)) return false;
-    }
-    return true;
+    searchInput.value = "";
 }
 
-// ---- Render: full ----
+function matchesSearch(play) {
+    if (!state.search) return true;
+    const haystack = [play.title, play.notes, play.team, typeLabel(play.type), ...(play.tags || []), ...(play.examples || []).map(e => e.label)]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    return haystack.includes(state.search);
+}
+
+// ---- Folder helpers ----
+
+function foldersForCategory(category) {
+    const fromPlays = new Set(currentAll.filter(p => p.category === category && p.type).map(p => p.type));
+    const custom = userState.customFolders[category] || [];
+    const names = new Set([...fromPlays, ...custom]);
+    const orderArr = userState.folderOrder[category] || [];
+    const existing = orderArr.filter(n => names.has(n));
+    const missing = [...names].filter(n => !existing.includes(n));
+    userState.folderOrder[category] = [...existing, ...missing];
+    saveUserState();
+    return userState.folderOrder[category];
+}
+
+function unfiledCount(category) {
+    return currentAll.filter(p => p.category === category && !p.type).length;
+}
+
+function playsInFolder(category, folder) {
+    return currentAll.filter(p => p.category === category && (p.type || "") === (folder || ""));
+}
+
+function populateFolderDatalist() {
+    const names = new Set([...Object.keys(TYPE_LABELS), ...currentAll.map(p => p.type).filter(Boolean)]);
+    document.getElementById("typeSuggestions").innerHTML =
+        [...names].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(typeLabel(t))}</option>`).join("");
+}
+
+// ---- Render: dispatcher ----
 
 function renderAll() {
     currentAll = computePlaysList();
-    buildTypeFilters(currentAll);
-    renderOutline(currentAll);
-    renderGrid();
+    populateFolderDatalist();
+    renderMain();
 }
 
-function renderGrid() {
-    const filtered = currentAll.filter(matchesFilter);
-    resultCount.textContent = `${filtered.length}개의 전술`;
-    emptyState.hidden = filtered.length !== 0;
-    playGrid.innerHTML = filtered.map(playCardHtml).join("");
+function renderMain() {
+    renderBreadcrumb();
+    if (state.search) {
+        renderSearchResults();
+    } else if (!nav.category) {
+        renderCategoryRoot();
+    } else if (!nav.folder) {
+        renderFolderList(nav.category);
+    } else {
+        renderPlaysInFolder(nav.category, nav.folder);
+    }
+    renderOutlinePanel();
+}
 
+function renderBreadcrumb() {
+    const parts = [`<button class="crumb" data-nav="root">전체</button>`];
+    if (state.search) {
+        parts.push(`<span class="crumb-sep">/</span><span class="crumb current">"${escapeHtml(searchInput.value)}" 검색 결과</span>`);
+    } else if (nav.category) {
+        parts.push(`<span class="crumb-sep">/</span><button class="crumb" data-nav="category">${CATEGORY_LABELS[nav.category]}</button>`);
+        if (nav.folder !== null) {
+            parts.push(`<span class="crumb-sep">/</span><span class="crumb current">${escapeHtml(typeLabel(nav.folder))}</span>`);
+        }
+    }
+    breadcrumbEl.innerHTML = parts.join("");
+    breadcrumbEl.querySelectorAll(".crumb[data-nav]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            clearSearch();
+            if (btn.dataset.nav === "root") nav = { category: null, folder: null };
+            else if (btn.dataset.nav === "category") nav.folder = null;
+            renderMain();
+        });
+    });
+}
+
+// ---- Render: category root ----
+
+function renderCategoryRoot() {
+    emptyState.hidden = true;
+    const cats = ["offense", "defense"];
+    playGrid.innerHTML = cats.map(c => {
+        const plays = currentAll.filter(p => p.category === c);
+        const folderCount = foldersForCategory(c).length + (unfiledCount(c) > 0 ? 1 : 0);
+        return `
+            <article class="folder-card category-card" data-category="${c}">
+                <div class="folder-icon">${c === "offense" ? "🧡" : "💙"}</div>
+                <h3 class="folder-name">${CATEGORY_LABELS[c]}</h3>
+                <p class="folder-meta">폴더 ${folderCount}개 · 전술 ${plays.length}개</p>
+            </article>
+        `;
+    }).join("");
+
+    playGrid.querySelectorAll(".category-card").forEach(card => {
+        card.addEventListener("click", () => {
+            nav.category = card.dataset.category;
+            nav.folder = null;
+            renderMain();
+        });
+    });
+}
+
+// ---- Render: folder list within a category ----
+
+function renderFolderList(category) {
+    const folders = foldersForCategory(category);
+    const unfiled = unfiledCount(category);
+    emptyState.hidden = !(folders.length === 0 && unfiled === 0);
+    emptyState.textContent = "아직 폴더가 없어요. '+ 새 폴더'로 만들어보세요.";
+
+    const folderCards = folders.map(f => {
+        const count = playsInFolder(category, f).length;
+        return `
+            <article class="folder-card" data-folder="${escapeHtml(f)}">
+                <button class="icon-btn folder-delete" title="폴더 삭제" ${count > 0 ? "hidden" : ""}>&times;</button>
+                <div class="folder-icon">📁</div>
+                <h3 class="folder-name">${escapeHtml(typeLabel(f))}</h3>
+                <p class="folder-meta">전술 ${count}개</p>
+            </article>
+        `;
+    }).join("");
+
+    const unfiledCard = unfiled > 0 ? `
+        <article class="folder-card" data-folder="">
+            <div class="folder-icon">📂</div>
+            <h3 class="folder-name">미분류</h3>
+            <p class="folder-meta">전술 ${unfiled}개</p>
+        </article>
+    ` : "";
+
+    const addCard = `
+        <button type="button" class="folder-card folder-add" id="addFolderCard">
+            <div class="folder-icon">+</div>
+            <h3 class="folder-name">새 폴더</h3>
+        </button>
+    `;
+
+    playGrid.innerHTML = folderCards + unfiledCard + addCard;
+
+    playGrid.querySelectorAll(".folder-card[data-folder]").forEach(card => {
+        card.addEventListener("click", (e) => {
+            if (e.target.closest(".folder-delete")) return;
+            nav.folder = card.dataset.folder;
+            renderMain();
+        });
+        card.querySelector(".folder-delete")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+            deleteFolder(category, card.dataset.folder);
+        });
+    });
+
+    document.getElementById("addFolderCard").addEventListener("click", () => openAddFolder(category));
+}
+
+function deleteFolder(category, name) {
+    if (playsInFolder(category, name).length > 0) {
+        alert("폴더 안에 전술이 있어서 삭제할 수 없어요. 먼저 전술을 옮기거나 삭제해주세요.");
+        return;
+    }
+    if (!confirm("이 폴더를 삭제할까요?")) return;
+    userState.customFolders[category] = (userState.customFolders[category] || []).filter(n => n !== name);
+    userState.folderOrder[category] = (userState.folderOrder[category] || []).filter(n => n !== name);
+    saveUserState();
+    renderMain();
+}
+
+// ---- Render: plays inside a folder / search results ----
+
+function renderPlaysInFolder(category, folder) {
+    const list = playsInFolder(category, folder);
+    emptyState.hidden = list.length !== 0;
+    emptyState.textContent = "이 폴더에는 아직 전술이 없어요.";
+    playGrid.innerHTML = list.map(playCardHtml).join("");
+    attachPlayCardHandlers();
+}
+
+function renderSearchResults() {
+    const list = currentAll.filter(matchesSearch);
+    emptyState.hidden = list.length !== 0;
+    emptyState.textContent = "검색 결과가 없어요.";
+    playGrid.innerHTML = list.map(playCardHtml).join("");
+    attachPlayCardHandlers();
+}
+
+function attachPlayCardHandlers() {
     playGrid.querySelectorAll(".play-card").forEach(card => {
         const id = card.dataset.id;
         card.addEventListener("click", (e) => {
@@ -274,7 +412,7 @@ function playCardHtml(play) {
             </div>
             <div class="badges">
                 <span class="badge cat-${play.category}">${CATEGORY_LABELS[play.category] || play.category}</span>
-                <span class="badge">${typeLabel(play.type)}</span>
+                <span class="badge">${escapeHtml(typeLabel(play.type))}</span>
             </div>
             ${play.notes ? `<p class="card-notes">${escapeHtml(play.notes)}</p>` : ""}
             <div class="example-pills">
@@ -285,12 +423,88 @@ function playCardHtml(play) {
     `;
 }
 
-// ---- Outline / reorder panel ----
+function deletePlay(id) {
+    if (!confirm("이 전술을 삭제할까요? (이 브라우저에서만 사라져요)")) return;
+    userState.removedPlays.push(id);
+    saveUserState();
+    renderAll();
+}
+
+// ---- Right-side outline panel (folders or plays, depending on nav) ----
+
+function renderOutlinePanel() {
+    if (state.search || !nav.category) {
+        outlinePanel.hidden = true;
+        return;
+    }
+    outlinePanel.hidden = false;
+    if (!nav.folder) {
+        renderFolderOutline(nav.category);
+    } else {
+        renderPlayOutline(nav.category, nav.folder);
+    }
+}
+
+let dragFolderName = null;
+
+function renderFolderOutline(category) {
+    outlineTitle.innerHTML = `폴더 목록 <span class="hint">드래그해서 순서 변경</span>`;
+    const folders = foldersForCategory(category);
+    outlineList.innerHTML = folders.map((f, i) => `
+        <li class="outline-item" draggable="true" data-folder="${escapeHtml(f)}">
+            <span class="drag-handle">⋮⋮</span>
+            <span class="outline-index">${i + 1}</span>
+            <span class="outline-title">${escapeHtml(typeLabel(f))}</span>
+            <button class="icon-btn outline-delete" title="삭제" ${playsInFolder(category, f).length > 0 ? "hidden" : ""}>&times;</button>
+        </li>
+    `).join("");
+
+    outlineList.querySelectorAll(".outline-item").forEach(li => {
+        const name = li.dataset.folder;
+
+        li.addEventListener("click", (e) => {
+            if (e.target.closest(".outline-delete")) return;
+            nav.folder = name;
+            renderMain();
+        });
+
+        li.querySelector(".outline-delete")?.addEventListener("click", (e) => {
+            e.stopPropagation();
+            deleteFolder(category, name);
+        });
+
+        li.addEventListener("dragstart", () => {
+            dragFolderName = name;
+            li.classList.add("dragging");
+        });
+
+        li.addEventListener("dragend", () => {
+            li.classList.remove("dragging");
+            dragFolderName = null;
+            saveUserState();
+            renderFolderList(category);
+        });
+
+        li.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            if (!dragFolderName || dragFolderName === name) return;
+            const arr = userState.folderOrder[category];
+            const from = arr.indexOf(dragFolderName);
+            const to = arr.indexOf(name);
+            if (from === -1 || to === -1 || from === to) return;
+            arr.splice(from, 1);
+            arr.splice(to, 0, dragFolderName);
+            renderFolderOutline(category);
+        });
+    });
+}
 
 let dragId = null;
 
-function renderOutline(all) {
-    outlineList.innerHTML = all.map((play, i) => `
+function renderPlayOutline(category, folder) {
+    outlineTitle.innerHTML = `전술 목록 <span class="hint">드래그해서 순서 변경</span>`;
+    const list = playsInFolder(category, folder);
+    outlineList.innerHTML = list.map((play, i) => `
         <li class="outline-item" draggable="true" data-id="${play.id}">
             <span class="drag-handle">⋮⋮</span>
             <span class="outline-index">${i + 1}</span>
@@ -321,7 +535,7 @@ function renderOutline(all) {
             li.classList.remove("dragging");
             dragId = null;
             saveUserState();
-            renderGrid();
+            renderPlaysInFolder(category, folder);
         });
 
         li.addEventListener("dragover", (e) => {
@@ -336,16 +550,9 @@ function renderOutline(all) {
             const [moved] = currentAll.splice(fromIdx, 1);
             const toIdx = currentAll.findIndex(p => p.id === id);
             currentAll.splice(toIdx, 0, moved);
-            renderOutline(currentAll);
+            renderPlayOutline(category, folder);
         });
     });
-}
-
-function deletePlay(id) {
-    if (!confirm("이 전술을 삭제할까요? (이 브라우저에서만 사라져요)")) return;
-    userState.removedPlays.push(id);
-    saveUserState();
-    renderAll();
 }
 
 // ---- Modal / Player ----
@@ -377,7 +584,7 @@ function openPlay(id, exampleIndex) {
     modalTitle.textContent = play.title;
     modalBadges.innerHTML = `
         <span class="badge cat-${play.category}">${CATEGORY_LABELS[play.category] || play.category}</span>
-        <span class="badge">${typeLabel(play.type)}</span>
+        <span class="badge">${escapeHtml(typeLabel(play.type))}</span>
         ${(play.tags || []).map(t => `<span class="badge">${escapeHtml(t)}</span>`).join("")}
     `;
     modalNotes.textContent = play.notes || "";
@@ -530,8 +737,15 @@ function resolveClipTiming(fd, fallbackStart) {
 
 const addPlayModal = document.getElementById("addPlayModal");
 const addPlayForm = document.getElementById("addPlayForm");
+const addPlayCategorySelect = document.getElementById("addPlayCategory");
+const addPlayFolderInput = document.getElementById("addPlayFolder");
 
-document.getElementById("addPlayFab").addEventListener("click", () => addPlayModal.hidden = false);
+document.getElementById("addPlayFab").addEventListener("click", () => {
+    addPlayForm.reset();
+    if (nav.category) addPlayCategorySelect.value = nav.category;
+    if (nav.folder) addPlayFolderInput.value = nav.folder;
+    addPlayModal.hidden = false;
+});
 document.getElementById("closeAddPlay").addEventListener("click", () => addPlayModal.hidden = true);
 document.getElementById("addPlayBackdrop").addEventListener("click", () => addPlayModal.hidden = true);
 
@@ -568,6 +782,9 @@ addPlayForm.addEventListener("submit", (e) => {
     saveUserState();
     addPlayForm.reset();
     addPlayModal.hidden = true;
+    nav.category = play.category;
+    nav.folder = play.type || "";
+    clearSearch();
     renderAll();
 });
 
@@ -616,6 +833,39 @@ addExampleForm.addEventListener("submit", (e) => {
     }
 });
 
+// ---- Add Folder ----
+
+const addFolderModal = document.getElementById("addFolderModal");
+const addFolderForm = document.getElementById("addFolderForm");
+let addFolderCategory = null;
+
+function openAddFolder(category) {
+    addFolderCategory = category;
+    addFolderForm.reset();
+    addFolderModal.hidden = false;
+}
+
+document.getElementById("closeAddFolder").addEventListener("click", () => addFolderModal.hidden = true);
+document.getElementById("addFolderBackdrop").addEventListener("click", () => addFolderModal.hidden = true);
+
+addFolderForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(addFolderForm);
+    const name = fd.get("folderName").trim();
+    if (!name) return;
+    if (!userState.customFolders[addFolderCategory].includes(name)) {
+        userState.customFolders[addFolderCategory].push(name);
+    }
+    if (!userState.folderOrder[addFolderCategory].includes(name)) {
+        userState.folderOrder[addFolderCategory].unshift(name);
+    }
+    saveUserState();
+    addFolderModal.hidden = true;
+    nav.category = addFolderCategory;
+    nav.folder = name;
+    renderAll();
+});
+
 // ---- Export ----
 
 document.getElementById("exportBtn").addEventListener("click", () => {
@@ -645,5 +895,6 @@ document.addEventListener("keydown", (e) => {
         guideModal.hidden = true;
         addPlayModal.hidden = true;
         addExampleModal.hidden = true;
+        addFolderModal.hidden = true;
     }
 });

@@ -26,25 +26,17 @@
                 <button id="guideBtn" class="btn btn-outline">도움말</button>
             </div>
         </div>
-        <div class="filter-bar">
-            <div class="filter-item">
-                <label class="check"><input type="checkbox" class="category-filter" value="offense" checked> 공격</label>
-                <label class="check"><input type="checkbox" class="category-filter" value="defense" checked> 수비</label>
-            </div>
-            <div id="typeFilterList" class="type-filter-list"></div>
-            <button id="resetFilters" class="btn btn-ghost btn-sm">필터 초기화</button>
-        </div>
     </header>
 
     <main class="layout">
         <section class="play-area">
-            <p id="resultCount" class="result-count"></p>
+            <nav id="breadcrumb" class="breadcrumb"></nav>
             <div id="playGrid" class="play-grid"></div>
-            <p id="emptyState" class="empty-state" hidden>조건에 맞는 전술이 없어요.</p>
+            <p id="emptyState" class="empty-state" hidden></p>
         </section>
 
-        <aside class="outline-panel">
-            <h2>전술 목록 <span class="hint">드래그해서 순서 변경</span></h2>
+        <aside class="outline-panel" id="outlinePanel">
+            <h2 id="outlineTitle"></h2>
             <ul id="outlineList" class="outline-list"></ul>
         </aside>
     </main>
@@ -100,13 +92,13 @@
                 </label>
                 <div class="form-row">
                     <label>구분
-                        <select name="category">
+                        <select name="category" id="addPlayCategory">
                             <option value="offense">공격</option>
                             <option value="defense">수비</option>
                         </select>
                     </label>
-                    <label>세부 유형
-                        <input type="text" name="type" list="typeSuggestions" placeholder="예: horns, pick-and-roll" required>
+                    <label>폴더 (선택)
+                        <input type="text" name="type" id="addPlayFolder" list="typeSuggestions" placeholder="예: 지역 상대, 맨투맨 상대">
                         <datalist id="typeSuggestions"></datalist>
                     </label>
                 </div>
@@ -155,18 +147,35 @@
         </div>
     </div>
 
+    <!-- Add Folder Modal -->
+    <div id="addFolderModal" class="modal" hidden>
+        <div class="modal-backdrop" id="addFolderBackdrop"></div>
+        <div class="modal-panel form-panel">
+            <button id="closeAddFolder" class="modal-close" aria-label="닫기">&times;</button>
+            <h2>새 폴더 만들기</h2>
+            <form id="addFolderForm">
+                <label>폴더 이름
+                    <input type="text" name="folderName" placeholder="예: 지역 상대, 맨투맨 상대" required>
+                </label>
+                <button type="submit" class="btn btn-primary">만들기</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Guide Modal -->
     <div id="guideModal" class="modal" hidden>
         <div class="modal-backdrop" id="guideBackdrop"></div>
         <div class="modal-panel guide-panel">
             <button id="closeGuide" class="modal-close" aria-label="닫기">&times;</button>
             <h2>사용 방법</h2>
+            <h3>폴더로 정리하기</h3>
+            <p>맨 처음 화면에서 <b>공격</b> / <b>수비</b>를 고르면, 그 안에서 <b>+ 새 폴더</b>로 "지역 상대", "맨투맨 상대"처럼 원하는 폴더를 만들 수 있어요. 폴더를 열면 그 안의 전술만 모아서 볼 수 있어요. 폴더를 지정하지 않고 전술을 추가하면 <b>미분류</b> 폴더에 들어가요.</p>
             <h3>영상 추가하기</h3>
             <p>오른쪽 아래 <b>+ 새 전술 / 영상 추가</b> 버튼을 누르고 유튜브 링크와 이름만 입력하면 바로 추가돼요. 이미 있는 전술(예: Horns)에 다른 예시 영상을 더 넣고 싶으면, 카드나 재생 화면의 <b>+ 이 전술에 예시 영상 추가</b> 버튼을 쓰세요. 번호 버튼(1, 2, 3...)을 누르면 그 예시 영상이 재생돼요.</p>
             <h3>클립 구간(시작/끝) 지정하기</h3>
             <p>영상 전체가 아니라 원하는 구간만 재생되게 하려면 <b>시작 시간</b>과 <b>종료 시간</b>을 적어주세요. <code>1:35</code>처럼 분:초로 적거나 <code>95</code>처럼 초 단위 숫자로 적어도 돼요. 비워두면 시작은 영상 처음부터(또는 링크에 있는 시간), 끝은 영상이 끝날 때까지 재생돼요.</p>
             <h3>순서 바꾸기 / 삭제하기</h3>
-            <p>오른쪽 <b>전술 목록</b> 패널에서 드래그해서 순서를 바꿀 수 있어요. 각 항목의 × 버튼으로 삭제할 수 있어요.</p>
+            <p>오른쪽 패널에서 드래그해서 폴더나 전술의 순서를 바꿀 수 있어요. 각 항목의 × 버튼으로 삭제할 수 있어요 (폴더는 안이 비어있어야 삭제할 수 있어요).</p>
             <h3>⚠️ 브라우저에만 저장돼요</h3>
             <p>여기서 추가/삭제/정렬한 내용은 <b>지금 이 브라우저에만</b> 저장돼요 (localStorage). 다른 기기나 다른 사람에게는 보이지 않아요. 모두에게 영구 반영하려면 상단의 <b>내보내기</b> 버튼으로 최신 상태를 <code>plays.json</code> 파일로 받아서, 저장소의 <code>basketball/data/plays.json</code> 파일을 그걸로 교체하고 커밋/푸시하세요.</p>
         </div>
