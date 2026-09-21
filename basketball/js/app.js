@@ -68,7 +68,7 @@ function extractYoutube(url) {
 const STORAGE_KEY = "bball_tactics_v1";
 
 function defaultState() {
-    return { plays: [], examplesByPlay: {}, order: [], removedPlays: [], removedExamples: {} };
+    return { plays: [], examplesByPlay: {}, order: [], removedPlays: [], removedExamples: {}, notesOverride: {} };
 }
 
 function loadUserState() {
@@ -104,6 +104,7 @@ function computePlaysList() {
         ...userState.plays.filter(p => !userState.removedPlays.includes(p.id))
     ].map(p => ({
         ...p,
+        notes: userState.notesOverride[p.id] !== undefined ? userState.notesOverride[p.id] : p.notes,
         examples: [
             ...(p.examples || []).filter(ex => !(userState.removedExamples[p.id] || []).includes(ex.id)),
             ...(userState.examplesByPlay[p.id] || [])
@@ -257,11 +258,11 @@ function playCardHtml(play) {
                 <span class="badge cat-${play.category}">${CATEGORY_LABELS[play.category] || play.category}</span>
                 <span class="badge">${typeLabel(play.type)}</span>
             </div>
+            ${play.notes ? `<p class="card-notes">${escapeHtml(play.notes)}</p>` : ""}
             <div class="example-pills">
                 ${examples.map((ex, i) => `<button class="pill-btn" data-idx="${i}" title="${escapeHtml(ex.label || '')}">${i + 1}</button>`).join("")}
                 <button class="pill-btn pill-add" title="예시 영상 추가">+</button>
             </div>
-            ${play.notes ? `<p class="card-notes">${escapeHtml(play.notes)}</p>` : ""}
         </article>
     `;
 }
@@ -340,6 +341,11 @@ const localPlayerEl = document.getElementById("localPlayer");
 const replayBtn = document.getElementById("replayBtn");
 const exampleSwitcher = document.getElementById("exampleSwitcher");
 const currentExampleLabel = document.getElementById("currentExampleLabel");
+const editNotesBtn = document.getElementById("editNotesBtn");
+const modalNotesEdit = document.getElementById("modalNotesEdit");
+const notesEditActions = document.getElementById("notesEditActions");
+const saveNotesBtn = document.getElementById("saveNotesBtn");
+const cancelNotesBtn = document.getElementById("cancelNotesBtn");
 
 let ytApiReady = false;
 let ytPlayer = null;
@@ -357,11 +363,40 @@ function openPlay(id, exampleIndex) {
         ${(play.tags || []).map(t => `<span class="badge">${escapeHtml(t)}</span>`).join("")}
     `;
     modalNotes.textContent = play.notes || "";
+    exitNotesEditMode();
 
     renderExampleSwitcher();
     clipModal.hidden = false;
     playActiveExample();
 }
+
+function exitNotesEditMode() {
+    modalNotesEdit.hidden = true;
+    notesEditActions.hidden = true;
+    modalNotes.hidden = false;
+}
+
+editNotesBtn.addEventListener("click", () => {
+    if (!activePlay) return;
+    modalNotesEdit.value = activePlay.notes || "";
+    modalNotes.hidden = true;
+    modalNotesEdit.hidden = false;
+    notesEditActions.hidden = false;
+    modalNotesEdit.focus();
+});
+
+cancelNotesBtn.addEventListener("click", exitNotesEditMode);
+
+saveNotesBtn.addEventListener("click", () => {
+    if (!activePlay) return;
+    const val = modalNotesEdit.value.trim();
+    userState.notesOverride[activePlay.id] = val;
+    saveUserState();
+    activePlay.notes = val;
+    modalNotes.textContent = val;
+    exitNotesEditMode();
+    renderAll();
+});
 
 function renderExampleSwitcher() {
     exampleSwitcher.innerHTML = activePlay.examples.map((ex, i) => `

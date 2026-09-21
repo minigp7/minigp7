@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>농구 전술 클립 정리</title>
+    <title>Basketball Strategy | 농구 전술 클립 정리</title>
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <meta content="농구 전술 영상 클립 아카이브" name="description">
     <link href="css/style.css" rel="stylesheet">
@@ -12,12 +12,20 @@
 <body>
     <header class="site-header">
         <div class="header-inner">
-            <h1 class="logo">🏀 전술 클립 정리</h1>
-            <div class="search-wrap">
-                <input id="searchInput" type="text" placeholder="제목, 태그, 메모로 검색...">
+            <div class="brand">
+                <span class="brand-mark">🏀</span>
+                <div class="brand-text">
+                    <span class="brand-title">Basketball <em>Strategy</em></span>
+                    <span class="brand-sub">농구 전술 클립 정리</span>
+                </div>
             </div>
-            <button id="exportBtn" class="btn btn-ghost">내보내기</button>
-            <button id="guideBtn" class="btn btn-outline">도움말</button>
+            <div class="header-actions">
+                <div class="search-wrap">
+                    <input id="searchInput" type="text" placeholder="제목, 태그, 설명으로 검색...">
+                </div>
+                <button id="exportBtn" class="btn btn-ghost">내보내기</button>
+                <button id="guideBtn" class="btn btn-outline">도움말</button>
+            </div>
         </div>
         <div class="filter-bar">
             <div class="filter-item">
@@ -59,10 +67,21 @@
                     <button id="replayBtn" class="btn btn-outline btn-sm">다시보기</button>
                 </div>
                 <div id="modalBadges" class="badges"></div>
+                <div class="notes-block">
+                    <div class="notes-head">
+                        <h3>설명</h3>
+                        <button id="editNotesBtn" class="icon-btn" title="설명 수정">✎</button>
+                    </div>
+                    <p id="modalNotes" class="notes"></p>
+                    <textarea id="modalNotesEdit" class="notes-edit" hidden placeholder="이 전술에 대한 설명을 적어보세요"></textarea>
+                    <div id="notesEditActions" class="notes-edit-actions" hidden>
+                        <button id="saveNotesBtn" class="btn btn-primary btn-sm">저장</button>
+                        <button id="cancelNotesBtn" class="btn btn-ghost btn-sm">취소</button>
+                    </div>
+                </div>
                 <div id="exampleSwitcher" class="example-switcher"></div>
                 <p id="currentExampleLabel" class="current-example-label"></p>
                 <button id="addExampleBtn" class="btn btn-ghost btn-sm">+ 이 전술에 예시 영상 추가</button>
-                <p id="modalNotes" class="notes"></p>
             </div>
         </div>
     </div>
@@ -76,6 +95,9 @@
             <form id="addPlayForm">
                 <label>전술 이름
                     <input type="text" name="title" placeholder="예: Horns 세트 오펜스" required>
+                </label>
+                <label>설명 (선택)
+                    <textarea name="notes" rows="3" placeholder="이 전술에 대한 설명을 적어보세요"></textarea>
                 </label>
                 <div class="form-row">
                     <label>구분
@@ -94,9 +116,6 @@
                 </label>
                 <label>영상 이름
                     <input type="text" name="exampleLabel" placeholder="예: 기본형 (비워두면 자동으로 번호만 붙어요)">
-                </label>
-                <label>메모 (선택)
-                    <textarea name="notes" rows="2" placeholder="이 전술에 대한 메모"></textarea>
                 </label>
                 <button type="submit" class="btn btn-primary">추가하기</button>
             </form>
