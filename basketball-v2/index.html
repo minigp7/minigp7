@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="utf-8">
+    <title>Basketball Strategy | 농구 전술 클립 정리</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta content="농구 전술 영상 클립 아카이브" name="description">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <div class="brand">
+                <span class="brand-mark">🏀</span>
+                <div class="brand-text">
+                    <span class="brand-title">Basketball <em>Strategy</em></span>
+                    <span class="brand-sub">농구 전술 클립 정리</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="search-wrap">
+                    <input id="searchInput" type="text" placeholder="제목, 태그, 설명으로 검색...">
+                </div>
+                <button id="exportBtn" class="btn btn-ghost">내보내기</button>
+                <button id="guideBtn" class="btn btn-outline">도움말</button>
+            </div>
+        </div>
+        <div class="filter-bar">
+            <div class="filter-item">
+                <label class="check"><input type="checkbox" class="category-filter" value="offense" checked> 공격</label>
+                <label class="check"><input type="checkbox" class="category-filter" value="defense" checked> 수비</label>
+            </div>
+            <div id="typeFilterList" class="type-filter-list"></div>
+            <button id="resetFilters" class="btn btn-ghost btn-sm">필터 초기화</button>
+        </div>
+    </header>
+
+    <main class="layout">
+        <section class="play-area">
+            <p id="resultCount" class="result-count"></p>
+            <div id="playGrid" class="play-grid"></div>
+            <p id="emptyState" class="empty-state" hidden>조건에 맞는 전술이 없어요.</p>
+        </section>
+
+        <aside class="outline-panel">
+            <h2>전술 목록 <span class="hint">드래그해서 순서 변경</span></h2>
+            <ul id="outlineList" class="outline-list"></ul>
+        </aside>
+    </main>
+
+    <button id="addPlayFab" class="fab-btn">+ 새 전술 / 영상 추가</button>
+
+    <!-- Clip Player Modal -->
+    <div id="clipModal" class="modal" hidden>
+        <div class="modal-backdrop" id="modalBackdrop"></div>
+        <div class="modal-panel">
+            <button id="closeModal" class="modal-close" aria-label="닫기">&times;</button>
+            <div class="player-wrap">
+                <div id="youtubePlayer"></div>
+                <video id="localPlayer" controls hidden></video>
+            </div>
+            <div class="clip-info">
+                <div class="clip-info-head">
+                    <h2 id="modalTitle"></h2>
+                    <button id="replayBtn" class="btn btn-outline btn-sm">다시보기</button>
+                </div>
+                <div id="modalBadges" class="badges"></div>
+                <div class="notes-block">
+                    <div class="notes-head">
+                        <h3>설명</h3>
+                        <button id="editNotesBtn" class="icon-btn" title="설명 수정">✎</button>
+                    </div>
+                    <p id="modalNotes" class="notes"></p>
+                    <textarea id="modalNotesEdit" class="notes-edit" hidden placeholder="이 전술에 대한 설명을 적어보세요"></textarea>
+                    <div id="notesEditActions" class="notes-edit-actions" hidden>
+                        <button id="saveNotesBtn" class="btn btn-primary btn-sm">저장</button>
+                        <button id="cancelNotesBtn" class="btn btn-ghost btn-sm">취소</button>
+                    </div>
+                </div>
+                <div id="exampleSwitcher" class="example-switcher"></div>
+                <p id="currentExampleLabel" class="current-example-label"></p>
+                <button id="addExampleBtn" class="btn btn-ghost btn-sm">+ 이 전술에 예시 영상 추가</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Play Modal -->
+    <div id="addPlayModal" class="modal" hidden>
+        <div class="modal-backdrop" id="addPlayBackdrop"></div>
+        <div class="modal-panel form-panel">
+            <button id="closeAddPlay" class="modal-close" aria-label="닫기">&times;</button>
+            <h2>새 전술 추가</h2>
+            <form id="addPlayForm">
+                <label>전술 이름
+                    <input type="text" name="title" placeholder="예: Horns 세트 오펜스" required>
+                </label>
+                <label>설명 (선택)
+                    <textarea name="notes" rows="3" placeholder="이 전술에 대한 설명을 적어보세요"></textarea>
+                </label>
+                <div class="form-row">
+                    <label>구분
+                        <select name="category">
+                            <option value="offense">공격</option>
+                            <option value="defense">수비</option>
+                        </select>
+                    </label>
+                    <label>세부 유형
+                        <input type="text" name="type" list="typeSuggestions" placeholder="예: horns, pick-and-roll" required>
+                        <datalist id="typeSuggestions"></datalist>
+                    </label>
+                </div>
+                <label>영상 링크 (유튜브)
+                    <input type="text" name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
+                </label>
+                <label>영상 이름
+                    <input type="text" name="exampleLabel" placeholder="예: 기본형 (비워두면 자동으로 번호만 붙어요)">
+                </label>
+                <button type="submit" class="btn btn-primary">추가하기</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Example Modal -->
+    <div id="addExampleModal" class="modal" hidden>
+        <div class="modal-backdrop" id="addExampleBackdrop"></div>
+        <div class="modal-panel form-panel">
+            <button id="closeAddExample" class="modal-close" aria-label="닫기">&times;</button>
+            <h2>예시 영상 추가</h2>
+            <form id="addExampleForm">
+                <label>영상 링크 (유튜브)
+                    <input type="text" name="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required>
+                </label>
+                <label>영상 이름
+                    <input type="text" name="exampleLabel" placeholder="예: 스플릿 변형 (비워두면 자동으로 번호만 붙어요)">
+                </label>
+                <button type="submit" class="btn btn-primary">추가하기</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Guide Modal -->
+    <div id="guideModal" class="modal" hidden>
+        <div class="modal-backdrop" id="guideBackdrop"></div>
+        <div class="modal-panel guide-panel">
+            <button id="closeGuide" class="modal-close" aria-label="닫기">&times;</button>
+            <h2>사용 방법</h2>
+            <h3>영상 추가하기</h3>
+            <p>오른쪽 아래 <b>+ 새 전술 / 영상 추가</b> 버튼을 누르고 유튜브 링크와 이름만 입력하면 바로 추가돼요. 이미 있는 전술(예: Horns)에 다른 예시 영상을 더 넣고 싶으면, 카드나 재생 화면의 <b>+ 이 전술에 예시 영상 추가</b> 버튼을 쓰세요. 번호 버튼(1, 2, 3...)을 누르면 그 예시 영상이 재생돼요.</p>
+            <h3>순서 바꾸기 / 삭제하기</h3>
+            <p>오른쪽 <b>전술 목록</b> 패널에서 드래그해서 순서를 바꿀 수 있어요. 각 항목의 × 버튼으로 삭제할 수 있어요.</p>
+            <h3>⚠️ 브라우저에만 저장돼요</h3>
+            <p>여기서 추가/삭제/정렬한 내용은 <b>지금 이 브라우저에만</b> 저장돼요 (localStorage). 다른 기기나 다른 사람에게는 보이지 않아요. 모두에게 영구 반영하려면 상단의 <b>내보내기</b> 버튼으로 최신 상태를 <code>plays.json</code> 파일로 받아서, 저장소의 <code>basketball-v2/data/plays.json</code> 파일을 그걸로 교체하고 커밋/푸시하세요.</p>
+        </div>
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
