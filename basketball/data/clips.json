@@ -1,0 +1,16 @@
+[
+  {
+    "id": "sample-1",
+    "title": "예시 클립 - 삭제하거나 자유롭게 수정하세요",
+    "category": "offense",
+    "type": "pick-and-roll",
+    "tags": ["예시", "픽앤롤"],
+    "team": "",
+    "notes": "이 항목은 데이터 구조를 보여주기 위한 예시입니다. 실제 전술 클립을 추가하려면 이 항목을 지우거나 값을 바꾸세요. 각 필드의 의미는 사이트의 '클립 추가 방법' 버튼을 눌러 확인하세요.",
+    "source": "youtube",
+    "youtubeId": "dQw4w9WgXcQ",
+    "start": 0,
+    "end": 15,
+    "dateAdded": "2026-09-21"
+  }
+]

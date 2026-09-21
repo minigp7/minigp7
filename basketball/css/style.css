@@ -1,0 +1,360 @@
+:root {
+    --bg: #14181f;
+    --panel: #1c222c;
+    --panel-2: #232a36;
+    --text: #eef1f6;
+    --muted: #9aa4b5;
+    --accent: #ff7a1a;
+    --accent-2: #2f7dff;
+    --border: #2c3543;
+    --radius: 10px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+a {
+    color: inherit;
+}
+
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+}
+
+.header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.logo {
+    margin: 0;
+    font-size: 1.25rem;
+    white-space: nowrap;
+}
+
+.search-wrap {
+    flex: 1;
+    min-width: 200px;
+}
+
+#searchInput {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    outline: none;
+}
+
+#searchInput:focus {
+    border-color: var(--accent);
+}
+
+.btn {
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.btn:hover {
+    border-color: var(--accent);
+}
+
+.btn-outline {
+    background: transparent;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    width: 100%;
+    margin-top: 8px;
+}
+
+.layout {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 28px;
+}
+
+.filters {
+    position: sticky;
+    top: 74px;
+    align-self: start;
+}
+
+.filter-group {
+    margin-bottom: 22px;
+}
+
+.filter-group h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 10px;
+}
+
+.check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 0.92rem;
+    cursor: pointer;
+}
+
+.type-filter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.result-count {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 14px;
+}
+
+.clip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 18px;
+}
+
+.clip-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.clip-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+}
+
+.clip-thumb {
+    aspect-ratio: 16 / 9;
+    background: var(--panel-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.clip-thumb .play-badge {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(0deg, rgba(0,0,0,0.35), transparent 50%);
+    color: #fff;
+    font-size: 1.8rem;
+    opacity: 0.9;
+}
+
+.clip-body {
+    padding: 12px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.clip-title {
+    font-size: 0.98rem;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.35;
+}
+
+.badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.badge {
+    font-size: 0.72rem;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+.badge.cat-offense {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.badge.cat-defense {
+    color: var(--accent-2);
+    border-color: var(--accent-2);
+}
+
+.empty-state {
+    color: var(--muted);
+    text-align: center;
+    padding: 60px 0;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal:not([hidden]) {
+    display: flex;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(6, 8, 12, 0.75);
+}
+
+.modal-panel {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    max-width: 780px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 18px;
+}
+
+.modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.6rem;
+    cursor: pointer;
+    line-height: 1;
+    z-index: 2;
+}
+
+.player-wrap {
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#youtubePlayer,
+#localPlayer {
+    width: 100%;
+    height: 100%;
+}
+
+.clip-info {
+    padding-top: 16px;
+}
+
+.clip-info-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.clip-info-head h2 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.notes {
+    color: var(--muted);
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.guide-panel {
+    max-width: 640px;
+    line-height: 1.6;
+}
+
+.guide-panel h3 {
+    margin-top: 22px;
+    margin-bottom: 8px;
+}
+
+.guide-panel pre {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-size: 0.82rem;
+}
+
+.guide-panel code {
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.88em;
+}
+
+.guide-panel .hint {
+    color: var(--accent);
+    font-size: 0.88rem;
+}
+
+@media (max-width: 780px) {
+    .layout {
+        grid-template-columns: 1fr;
+    }
+
+    .filters {
+        position: static;
+    }
+}
