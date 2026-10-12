@@ -1,16 +1,21 @@
-[
-  {
-    "id": "horns-example",
-    "title": "Horns 세트 오펜스 (예시)",
-    "category": "offense",
-    "type": "horns",
-    "tags": ["horns", "예시"],
-    "team": "",
-    "notes": "이 항목은 예시예요. 카드의 번호 버튼(1, 2 ...)을 누르면 그 예시 영상이 재생돼요. 오른쪽 목록에서 드래그로 순서를 바꾸거나 삭제할 수 있고, 아래 '+' 버튼으로 실제 영상을 추가해보세요.",
-    "examples": [
-      { "id": "ex-1", "label": "기본형", "source": "youtube", "youtubeId": "dQw4w9WgXcQ", "start": 0, "end": 15 },
-      { "id": "ex-2", "label": "스플릿 변형", "source": "youtube", "youtubeId": "dQw4w9WgXcQ", "start": 0, "end": 15 }
-    ],
-    "dateAdded": "2026-09-21"
-  }
-]
+{
+  "folders": [
+    { "id": "horns", "category": "offense", "parentId": null, "name": "혼즈" }
+  ],
+  "plays": [
+    {
+      "id": "horns-example",
+      "title": "Horns 세트 오펜스 (예시)",
+      "category": "offense",
+      "folderId": "horns",
+      "tags": ["예시"],
+      "team": "",
+      "notes": "이 항목은 예시예요. 카드의 번호 버튼(1, 2 ...)을 누르면 그 예시 영상이 재생돼요. 폴더 카드의 ✎로 이름을 바꾸거나, 폴더 안에 또 폴더를 만들 수도 있어요.",
+      "examples": [
+        { "id": "ex-1", "label": "기본형", "source": "youtube", "youtubeId": "dQw4w9WgXcQ", "start": 0, "end": 15 },
+        { "id": "ex-2", "label": "스플릿 변형", "source": "youtube", "youtubeId": "dQw4w9WgXcQ", "start": 0, "end": 15 }
+      ],
+      "dateAdded": "2026-09-21"
+    }
+  ]
+}

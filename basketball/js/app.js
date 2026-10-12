@@ -35,6 +35,7 @@ function confirmWithPassword(message) {
     return true;
 }
 
+// Only used to prettify old English folder-name keys when migrating legacy data.
 const TYPE_LABELS = {
     "horns": "혼즈",
     "pick-and-roll": "픽앤롤",
@@ -125,21 +126,68 @@ function defaultState() {
         order: [],
         removedPlays: [],
         removedExamples: {},
-        notesOverride: {},
-        customFolders: { offense: [], defense: [] },
-        folderOrder: { offense: [], defense: [] }
+        playOverrides: {},
+        exampleOverrides: {},
+        folders: {},
+        folderOrderByParent: {},
+        scratchpad: ""
     };
+}
+
+// Converts older saved shapes (flat type-string folders, notesOverride) into
+// the id-based folder registry, without losing anything a user already added.
+function migrateState(old) {
+    const next = defaultState();
+    next.plays = old.plays || [];
+    next.examplesByPlay = old.examplesByPlay || {};
+    next.order = old.order || [];
+    next.removedPlays = old.removedPlays || [];
+    next.removedExamples = old.removedExamples || {};
+    next.scratchpad = old.scratchpad || "";
+    next.exampleOverrides = { ...(old.exampleOverrides || {}) };
+    next.playOverrides = { ...(old.playOverrides || {}) };
+    next.folders = { ...(old.folders || {}) };
+    next.folderOrderByParent = { ...(old.folderOrderByParent || {}) };
+
+    if (old.notesOverride) {
+        Object.entries(old.notesOverride).forEach(([id, notes]) => {
+            next.playOverrides[id] = { ...(next.playOverrides[id] || {}), notes };
+        });
+    }
+
+    function findOrCreateRootFolder(category, name) {
+        const dup = Object.entries(next.folders).find(([, f]) => f.category === category && !f.parentId && f.name === name);
+        if (dup) return dup[0];
+        const id = uid("folder");
+        next.folders[id] = { category, parentId: null, name };
+        const key = `${category}::root`;
+        if (!next.folderOrderByParent[key]) next.folderOrderByParent[key] = [];
+        next.folderOrderByParent[key].push(id);
+        return id;
+    }
+
+    if (old.customFolders) {
+        ["offense", "defense"].forEach(category => {
+            const names = old.customFolders[category] || [];
+            const orderNames = (old.folderOrder && old.folderOrder[category]) || [];
+            const seq = [...orderNames, ...names.filter(n => !orderNames.includes(n))];
+            seq.forEach(name => { if (name) findOrCreateRootFolder(category, name); });
+        });
+    }
+
+    next.plays = next.plays.map(p => {
+        if (p.folderId !== undefined || !p.type) return p;
+        return { ...p, folderId: findOrCreateRootFolder(p.category, typeLabel(p.type)) };
+    });
+
+    return next;
 }
 
 function loadUserState() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return defaultState();
-        const parsed = JSON.parse(raw);
-        const merged = { ...defaultState(), ...parsed };
-        merged.customFolders = { ...defaultState().customFolders, ...(parsed.customFolders || {}) };
-        merged.folderOrder = { ...defaultState().folderOrder, ...(parsed.folderOrder || {}) };
-        return merged;
+        return migrateState(JSON.parse(raw));
     } catch (e) {
         return defaultState();
     }
@@ -155,10 +203,73 @@ function saveUserState() {
 
 let basePlays = [];
 let userState = loadUserState();
+saveUserState();
 let currentAll = [];
 let activePlay = null;
 let activeExampleIndex = 0;
-let nav = { category: null, folder: null };
+let nav = { category: null, path: [] };
+
+// ---- Folder registry helpers ----
+
+function orderKey(category, parentId) {
+    return `${category}::${parentId || "root"}`;
+}
+
+function foldersAt(category, parentId) {
+    const key = orderKey(category, parentId);
+    const ids = Object.keys(userState.folders).filter(id => {
+        const f = userState.folders[id];
+        return f.category === category && (f.parentId || null) === (parentId || null);
+    });
+    const orderArr = userState.folderOrderByParent[key] || [];
+    const existing = orderArr.filter(id => ids.includes(id));
+    const missing = ids.filter(id => !existing.includes(id));
+    userState.folderOrderByParent[key] = [...existing, ...missing];
+    saveUserState();
+    return userState.folderOrderByParent[key];
+}
+
+function playsAt(category, parentId) {
+    return currentAll.filter(p => p.category === category && (p.folderId || null) === (parentId || null));
+}
+
+function folderName(folderId) {
+    if (!folderId) return "미분류";
+    return userState.folders[folderId] ? userState.folders[folderId].name : "미분류";
+}
+
+function pathToFolder(folderId) {
+    const path = [];
+    let cur = folderId;
+    while (cur) {
+        path.unshift(cur);
+        cur = userState.folders[cur] ? userState.folders[cur].parentId : null;
+    }
+    return path;
+}
+
+function currentFolderId() {
+    return nav.path.length ? nav.path[nav.path.length - 1] : null;
+}
+
+function flattenFolders(category, parentId, depth) {
+    const result = [];
+    foldersAt(category, parentId).forEach(id => {
+        result.push({ id, name: userState.folders[id].name, depth });
+        result.push(...flattenFolders(category, id, depth + 1));
+    });
+    return result;
+}
+
+function populateFolderSelect(selectEl, category, selectedId) {
+    const options = [`<option value="">(미분류 - 폴더 없음)</option>`];
+    flattenFolders(category, null, 0).forEach(f => {
+        const indent = "　".repeat(f.depth);
+        options.push(`<option value="${f.id}">${indent}${escapeHtml(f.name)}</option>`);
+    });
+    selectEl.innerHTML = options.join("");
+    selectEl.value = selectedId || "";
+}
 
 // ---- Merge base + user data ----
 
@@ -166,14 +277,20 @@ function computePlaysList() {
     const raw = [
         ...basePlays.filter(p => !userState.removedPlays.includes(p.id)),
         ...userState.plays.filter(p => !userState.removedPlays.includes(p.id))
-    ].map(p => ({
-        ...p,
-        notes: userState.notesOverride[p.id] !== undefined ? userState.notesOverride[p.id] : p.notes,
-        examples: [
-            ...(p.examples || []).filter(ex => !(userState.removedExamples[p.id] || []).includes(ex.id)),
-            ...(userState.examplesByPlay[p.id] || [])
-        ]
-    }));
+    ].map(p => {
+        const ov = userState.playOverrides[p.id] || {};
+        return {
+            ...p,
+            title: ov.title !== undefined ? ov.title : p.title,
+            category: ov.category !== undefined ? ov.category : p.category,
+            folderId: ov.folderId !== undefined ? ov.folderId : (p.folderId || null),
+            notes: ov.notes !== undefined ? ov.notes : p.notes,
+            examples: [
+                ...(p.examples || []).filter(ex => !(userState.removedExamples[p.id] || []).includes(ex.id)),
+                ...(userState.examplesByPlay[p.id] || [])
+            ].map(ex => ({ ...ex, ...(userState.exampleOverrides[ex.id] || {}) }))
+        };
+    });
 
     const allIds = raw.map(p => p.id);
     const existingOrder = userState.order.filter(id => allIds.includes(id));
@@ -191,7 +308,17 @@ function computePlaysList() {
 fetch("data/plays.json")
     .then(res => res.json())
     .then(data => {
-        basePlays = data;
+        basePlays = data.plays || [];
+        const baseFolders = data.folders || [];
+        baseFolders.forEach(f => {
+            if (!userState.folders[f.id]) {
+                userState.folders[f.id] = { category: f.category, parentId: f.parentId || null, name: f.name };
+            }
+            const key = orderKey(f.category, f.parentId || null);
+            if (!userState.folderOrderByParent[key]) userState.folderOrderByParent[key] = [];
+            if (!userState.folderOrderByParent[key].includes(f.id)) userState.folderOrderByParent[key].push(f.id);
+        });
+        saveUserState();
         renderAll();
     })
     .catch(err => {
@@ -222,46 +349,17 @@ function clearSearch() {
 
 function matchesSearch(play) {
     if (!state.search) return true;
-    const haystack = [play.title, play.notes, play.team, typeLabel(play.type), ...(play.tags || []), ...(play.examples || []).map(e => e.label)]
+    const haystack = [play.title, play.notes, play.team, folderName(play.folderId), ...(play.tags || []), ...(play.examples || []).map(e => e.label)]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
     return haystack.includes(state.search);
 }
 
-// ---- Folder helpers ----
-
-function foldersForCategory(category) {
-    const fromPlays = new Set(currentAll.filter(p => p.category === category && p.type).map(p => p.type));
-    const custom = userState.customFolders[category] || [];
-    const names = new Set([...fromPlays, ...custom]);
-    const orderArr = userState.folderOrder[category] || [];
-    const existing = orderArr.filter(n => names.has(n));
-    const missing = [...names].filter(n => !existing.includes(n));
-    userState.folderOrder[category] = [...existing, ...missing];
-    saveUserState();
-    return userState.folderOrder[category];
-}
-
-function unfiledCount(category) {
-    return currentAll.filter(p => p.category === category && !p.type).length;
-}
-
-function playsInFolder(category, folder) {
-    return currentAll.filter(p => p.category === category && (p.type || "") === (folder || ""));
-}
-
-function populateFolderDatalist() {
-    const names = new Set([...Object.keys(TYPE_LABELS), ...currentAll.map(p => p.type).filter(Boolean)]);
-    document.getElementById("typeSuggestions").innerHTML =
-        [...names].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(typeLabel(t))}</option>`).join("");
-}
-
 // ---- Render: dispatcher ----
 
 function renderAll() {
     currentAll = computePlaysList();
-    populateFolderDatalist();
     renderMain();
 }
 
@@ -271,30 +369,36 @@ function renderMain() {
         renderSearchResults();
     } else if (!nav.category) {
         renderCategoryRoot();
-    } else if (!nav.folder) {
-        renderFolderList(nav.category);
     } else {
-        renderPlaysInFolder(nav.category, nav.folder);
+        renderFolderView(nav.category, currentFolderId());
     }
     renderOutlinePanel();
 }
 
 function renderBreadcrumb() {
-    const parts = [`<button class="crumb" data-nav="root">전체</button>`];
+    const parts = [`<button class="crumb" data-nav-root>전체</button>`];
     if (state.search) {
         parts.push(`<span class="crumb-sep">/</span><span class="crumb current">"${escapeHtml(searchInput.value)}" 검색 결과</span>`);
     } else if (nav.category) {
-        parts.push(`<span class="crumb-sep">/</span><button class="crumb" data-nav="category">${CATEGORY_LABELS[nav.category]}</button>`);
-        if (nav.folder !== null) {
-            parts.push(`<span class="crumb-sep">/</span><span class="crumb current">${escapeHtml(typeLabel(nav.folder))}</span>`);
-        }
+        parts.push(`<span class="crumb-sep">/</span><button class="crumb" data-nav-depth="0">${CATEGORY_LABELS[nav.category]}</button>`);
+        nav.path.forEach((folderId, i) => {
+            const isLast = i === nav.path.length - 1;
+            const name = folderName(folderId);
+            parts.push(`<span class="crumb-sep">/</span>` + (isLast
+                ? `<span class="crumb current">${escapeHtml(name)}</span>`
+                : `<button class="crumb" data-nav-depth="${i + 1}">${escapeHtml(name)}</button>`));
+        });
     }
     breadcrumbEl.innerHTML = parts.join("");
-    breadcrumbEl.querySelectorAll(".crumb[data-nav]").forEach(btn => {
+    breadcrumbEl.querySelector("[data-nav-root]")?.addEventListener("click", () => {
+        clearSearch();
+        nav = { category: null, path: [] };
+        renderMain();
+    });
+    breadcrumbEl.querySelectorAll("[data-nav-depth]").forEach(btn => {
         btn.addEventListener("click", () => {
             clearSearch();
-            if (btn.dataset.nav === "root") nav = { category: null, folder: null };
-            else if (btn.dataset.nav === "category") nav.folder = null;
+            nav.path = nav.path.slice(0, parseInt(btn.dataset.navDepth, 10));
             expandToNav();
             renderMain();
         });
@@ -309,7 +413,7 @@ function renderCategoryRoot() {
     const cats = ["offense", "defense"];
     playGrid.innerHTML = cats.map(c => {
         const plays = currentAll.filter(p => p.category === c);
-        const folderCount = foldersForCategory(c).length + (unfiledCount(c) > 0 ? 1 : 0);
+        const folderCount = foldersAt(c, null).length;
         return `
             <article class="folder-card category-card" data-category="${c}">
                 <h3 class="folder-name">${CATEGORY_LABELS[c]}</h3>
@@ -321,39 +425,38 @@ function renderCategoryRoot() {
     playGrid.querySelectorAll(".category-card").forEach(card => {
         card.addEventListener("click", () => {
             nav.category = card.dataset.category;
-            nav.folder = null;
+            nav.path = [];
             expandToNav();
             renderMain();
         });
     });
 }
 
-// ---- Render: folder list within a category ----
+// ---- Render: folders + plays at the current level ----
 
-function renderFolderList(category) {
+function renderFolderView(category, parentId) {
     playGrid.classList.remove("category-grid");
-    const folders = foldersForCategory(category);
-    const unfiled = unfiledCount(category);
-    emptyState.hidden = !(folders.length === 0 && unfiled === 0);
-    emptyState.textContent = "아직 폴더가 없어요. '+ 새 폴더'로 만들어보세요.";
+    const folders = foldersAt(category, parentId);
+    const plays = playsAt(category, parentId);
+    emptyState.hidden = !(folders.length === 0 && plays.length === 0);
+    emptyState.textContent = "여기엔 아직 아무것도 없어요. '+ 새 폴더'를 만들거나 전술을 추가해보세요.";
 
-    const folderCards = folders.map(f => {
-        const count = playsInFolder(category, f).length;
+    const folderCards = folders.map(id => {
+        const f = userState.folders[id];
+        const subCount = foldersAt(category, id).length;
+        const playCount = playsAt(category, id).length;
+        const canDelete = subCount === 0 && playCount === 0;
         return `
-            <article class="folder-card" data-folder="${escapeHtml(f)}">
-                <button class="icon-btn folder-delete" title="폴더 삭제" ${count > 0 ? "hidden" : ""}>&times;</button>
-                <h3 class="folder-name">${escapeHtml(typeLabel(f))}</h3>
-                <p class="folder-meta">전술 ${count}개</p>
+            <article class="folder-card" data-folder-id="${id}">
+                <div class="folder-card-actions">
+                    <button class="icon-btn folder-rename" title="이름 수정">✎</button>
+                    <button class="icon-btn folder-delete" title="삭제" ${canDelete ? "" : "hidden"}>&times;</button>
+                </div>
+                <h3 class="folder-name">${escapeHtml(f.name)}</h3>
+                <p class="folder-meta">${subCount > 0 ? `하위 폴더 ${subCount}개 · ` : ""}전술 ${playCount}개</p>
             </article>
         `;
     }).join("");
-
-    const unfiledCard = unfiled > 0 ? `
-        <article class="folder-card" data-folder="">
-            <h3 class="folder-name">미분류</h3>
-            <p class="folder-meta">전술 ${unfiled}개</p>
-        </article>
-    ` : "";
 
     const addCard = `
         <button type="button" class="folder-card folder-add" id="addFolderCard">
@@ -361,46 +464,60 @@ function renderFolderList(category) {
         </button>
     `;
 
-    playGrid.innerHTML = folderCards + unfiledCard + addCard;
+    playGrid.innerHTML = folderCards + plays.map(playCardHtml).join("") + addCard;
 
-    playGrid.querySelectorAll(".folder-card[data-folder]").forEach(card => {
+    playGrid.querySelectorAll(".folder-card[data-folder-id]").forEach(card => {
+        const id = card.dataset.folderId;
         card.addEventListener("click", (e) => {
-            if (e.target.closest(".folder-delete")) return;
-            nav.folder = card.dataset.folder;
+            if (e.target.closest(".folder-rename") || e.target.closest(".folder-delete")) return;
+            nav.path = [...nav.path, id];
             expandToNav();
             renderMain();
         });
-        card.querySelector(".folder-delete")?.addEventListener("click", (e) => {
+        card.querySelector(".folder-rename").addEventListener("click", (e) => {
             e.stopPropagation();
-            deleteFolder(category, card.dataset.folder);
+            renameFolder(id);
+        });
+        card.querySelector(".folder-delete").addEventListener("click", (e) => {
+            e.stopPropagation();
+            deleteFolder(id);
         });
     });
 
-    document.getElementById("addFolderCard").addEventListener("click", () => openAddFolder(category));
+    attachPlayCardHandlers();
+    document.getElementById("addFolderCard").addEventListener("click", () => openAddFolder(category, parentId));
 }
 
-function deleteFolder(category, name) {
-    if (playsInFolder(category, name).length > 0) {
-        alert("폴더 안에 전술이 있어서 삭제할 수 없어요. 먼저 전술을 옮기거나 삭제해주세요.");
-        return;
-    }
-    if (!confirmWithPassword("이 폴더를 삭제할까요?")) return;
-    userState.customFolders[category] = (userState.customFolders[category] || []).filter(n => n !== name);
-    userState.folderOrder[category] = (userState.folderOrder[category] || []).filter(n => n !== name);
+function renameFolder(id) {
+    const f = userState.folders[id];
+    if (!f) return;
+    const name = prompt("폴더 이름", f.name);
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    f.name = trimmed;
     saveUserState();
     renderMain();
 }
 
-// ---- Render: plays inside a folder / search results ----
-
-function renderPlaysInFolder(category, folder) {
-    playGrid.classList.remove("category-grid");
-    const list = playsInFolder(category, folder);
-    emptyState.hidden = list.length !== 0;
-    emptyState.textContent = "이 폴더에는 아직 전술이 없어요.";
-    playGrid.innerHTML = list.map(playCardHtml).join("");
-    attachPlayCardHandlers();
+function deleteFolder(id) {
+    const f = userState.folders[id];
+    if (!f) return;
+    if (foldersAt(f.category, id).length > 0 || playsAt(f.category, id).length > 0) {
+        alert("폴더 안에 하위 폴더나 전술이 있어서 삭제할 수 없어요. 먼저 비워주세요.");
+        return;
+    }
+    if (!confirmWithPassword("이 폴더를 삭제할까요?")) return;
+    delete userState.folders[id];
+    Object.keys(userState.folderOrderByParent).forEach(key => {
+        userState.folderOrderByParent[key] = userState.folderOrderByParent[key].filter(x => x !== id);
+    });
+    saveUserState();
+    if (nav.path.includes(id)) nav.path = nav.path.slice(0, nav.path.indexOf(id));
+    renderMain();
 }
+
+// ---- Render: search results ----
 
 function renderSearchResults() {
     playGrid.classList.remove("category-grid");
@@ -445,7 +562,7 @@ function playCardHtml(play) {
             </div>
             <div class="badges">
                 <span class="badge cat-${play.category}">${CATEGORY_LABELS[play.category] || play.category}</span>
-                <span class="badge">${escapeHtml(typeLabel(play.type))}</span>
+                <span class="badge">${escapeHtml(folderName(play.folderId))}</span>
             </div>
             ${play.notes ? `<p class="card-notes">${escapeHtml(play.notes)}</p>` : ""}
             <div class="example-pills">
@@ -468,12 +585,9 @@ function deletePlay(id) {
 let treeExpanded = { offense: false, defense: false, folders: {} };
 
 function expandToNav() {
-    if (nav.category) {
-        treeExpanded[nav.category] = true;
-        if (nav.folder !== null) {
-            treeExpanded.folders[`${nav.category}::${nav.folder}`] = true;
-        }
-    }
+    if (!nav.category) return;
+    treeExpanded[nav.category] = true;
+    nav.path.forEach(id => { treeExpanded.folders[id] = true; });
 }
 
 function renderOutlinePanel() {
@@ -487,14 +601,14 @@ function renderTree() {
 
 function categoryNodeHtml(category) {
     const expanded = treeExpanded[category];
-    const plays = currentAll.filter(p => p.category === category);
-    const folders = foldersForCategory(category);
-    const unfiled = unfiledCount(category);
-    const hasChildren = folders.length > 0 || unfiled > 0;
+    const totalPlays = currentAll.filter(p => p.category === category).length;
+    const topFolders = foldersAt(category, null);
+    const topPlays = playsAt(category, null);
+    const hasChildren = topFolders.length > 0 || topPlays.length > 0;
     const childrenHtml = expanded && hasChildren ? `
         <ul class="tree-children">
-            ${folders.map(f => folderNodeHtml(category, f, false)).join("")}
-            ${unfiled > 0 ? folderNodeHtml(category, "", true) : ""}
+            ${topFolders.map(id => folderNodeHtml(category, id)).join("")}
+            ${topPlays.map(p => playNodeHtml(p)).join("")}
         </ul>
     ` : "";
     return `
@@ -502,32 +616,35 @@ function categoryNodeHtml(category) {
             <div class="tree-row">
                 <button class="tree-toggle ${hasChildren ? "" : "leaf"}" data-toggle="cat" data-category="${category}">${expanded ? "▾" : "▸"}</button>
                 <span class="tree-label" data-nav-cat="${category}">${CATEGORY_LABELS[category]}</span>
-                <span class="tree-count">${plays.length}</span>
+                <span class="tree-count">${totalPlays}</span>
             </div>
             ${childrenHtml}
         </li>
     `;
 }
 
-function folderNodeHtml(category, folder, isUnfiled) {
-    const key = `${category}::${folder}`;
-    const expanded = !!treeExpanded.folders[key];
-    const plays = playsInFolder(category, folder);
-    const label = isUnfiled ? "미분류" : typeLabel(folder);
-    const draggable = !isUnfiled;
-    const childrenHtml = expanded && plays.length > 0 ? `
+function folderNodeHtml(category, folderId) {
+    const f = userState.folders[folderId];
+    if (!f) return "";
+    const expanded = !!treeExpanded.folders[folderId];
+    const subfolders = foldersAt(category, folderId);
+    const plays = playsAt(category, folderId);
+    const hasChildren = subfolders.length > 0 || plays.length > 0;
+    const childrenHtml = expanded && hasChildren ? `
         <ul class="tree-children">
+            ${subfolders.map(id => folderNodeHtml(category, id)).join("")}
             ${plays.map(p => playNodeHtml(p)).join("")}
         </ul>
     ` : "";
     return `
-        <li class="tree-node tree-folder" draggable="${draggable}" data-category="${category}" data-folder="${escapeHtml(folder)}">
+        <li class="tree-node tree-folder" draggable="true" data-category="${category}" data-parent="${f.parentId || ""}" data-folder-id="${folderId}">
             <div class="tree-row">
-                <button class="tree-toggle ${plays.length > 0 ? "" : "leaf"}" data-toggle="folder" data-category="${category}" data-folder="${escapeHtml(folder)}">${expanded ? "▾" : "▸"}</button>
-                ${draggable ? '<span class="drag-handle">⋮⋮</span>' : ""}
-                <span class="tree-label" data-nav-category="${category}" data-nav-folder="${escapeHtml(folder)}">${escapeHtml(label)}</span>
+                <button class="tree-toggle ${hasChildren ? "" : "leaf"}" data-toggle="folder" data-folder-id="${folderId}">${expanded ? "▾" : "▸"}</button>
+                <span class="drag-handle">⋮⋮</span>
+                <span class="tree-label" data-nav-folder-id="${folderId}">${escapeHtml(f.name)}</span>
                 <span class="tree-count">${plays.length}</span>
-                ${draggable ? `<button class="icon-btn tree-delete" data-delete-folder="${escapeHtml(folder)}" data-category="${category}" title="삭제" ${plays.length > 0 ? "hidden" : ""}>&times;</button>` : ""}
+                <button class="icon-btn tree-rename" data-rename-folder="${folderId}" title="이름 수정">✎</button>
+                <button class="icon-btn tree-delete" data-delete-folder="${folderId}" title="삭제" ${(subfolders.length === 0 && plays.length === 0) ? "" : "hidden"}>&times;</button>
             </div>
             ${childrenHtml}
         </li>
@@ -536,7 +653,7 @@ function folderNodeHtml(category, folder, isUnfiled) {
 
 function playNodeHtml(play) {
     return `
-        <li class="tree-node tree-play" draggable="true" data-id="${play.id}" data-category="${play.category}" data-folder="${escapeHtml(play.type || "")}">
+        <li class="tree-node tree-play" draggable="true" data-category="${play.category}" data-folder="${play.folderId || ""}" data-id="${play.id}">
             <div class="tree-row tree-play-row">
                 <span class="tree-toggle leaf"></span>
                 <span class="drag-handle">⋮⋮</span>
@@ -555,8 +672,8 @@ function wireTree() {
             if (btn.dataset.toggle === "cat") {
                 treeExpanded[btn.dataset.category] = !treeExpanded[btn.dataset.category];
             } else {
-                const key = `${btn.dataset.category}::${btn.dataset.folder}`;
-                treeExpanded.folders[key] = !treeExpanded.folders[key];
+                const id = btn.dataset.folderId;
+                treeExpanded.folders[id] = !treeExpanded.folders[id];
             }
             renderTree();
         });
@@ -566,21 +683,21 @@ function wireTree() {
         el.addEventListener("click", () => {
             clearSearch();
             nav.category = el.dataset.navCat;
-            nav.folder = null;
+            nav.path = [];
             treeExpanded[nav.category] = true;
             renderMain();
         });
     });
 
-    outlineList.querySelectorAll("[data-nav-folder]").forEach(el => {
+    outlineList.querySelectorAll("[data-nav-folder-id]").forEach(el => {
         el.addEventListener("click", () => {
             clearSearch();
-            const category = el.dataset.navCategory;
-            const folder = el.dataset.navFolder;
-            nav.category = category;
-            nav.folder = folder;
-            treeExpanded[category] = true;
-            treeExpanded.folders[`${category}::${folder}`] = true;
+            const id = el.dataset.navFolderId;
+            const f = userState.folders[id];
+            if (!f) return;
+            nav.category = f.category;
+            nav.path = pathToFolder(id);
+            expandToNav();
             renderMain();
         });
     });
@@ -589,20 +706,28 @@ function wireTree() {
         el.addEventListener("click", () => openPlay(el.dataset.navPlay, 0));
     });
 
+    outlineList.querySelectorAll("[data-rename-folder]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            renameFolder(btn.dataset.renameFolder);
+        });
+    });
+
     outlineList.querySelectorAll("[data-delete-folder]").forEach(btn => {
         btn.addEventListener("click", (e) => {
             e.stopPropagation();
-            deleteFolder(btn.dataset.category, btn.dataset.deleteFolder);
+            deleteFolder(btn.dataset.deleteFolder);
         });
     });
 
     outlineList.querySelectorAll('.tree-folder[draggable="true"]').forEach(li => {
         const category = li.dataset.category;
-        const name = li.dataset.folder;
+        const parent = li.dataset.parent || null;
+        const id = li.dataset.folderId;
 
         li.addEventListener("dragstart", (e) => {
             e.stopPropagation();
-            dragInfo = { type: "folder", category, name };
+            dragInfo = { type: "folder", category, parent, id };
             li.classList.add("dragging");
         });
 
@@ -614,16 +739,17 @@ function wireTree() {
         });
 
         li.addEventListener("dragover", (e) => {
-            if (!dragInfo || dragInfo.type !== "folder" || dragInfo.category !== category) return;
+            if (!dragInfo || dragInfo.type !== "folder" || dragInfo.category !== category || (dragInfo.parent || null) !== (parent || null)) return;
             e.preventDefault();
             e.stopPropagation();
-            if (dragInfo.name === name) return;
-            const arr = userState.folderOrder[category];
-            const from = arr.indexOf(dragInfo.name);
-            const to = arr.indexOf(name);
+            if (dragInfo.id === id) return;
+            const key = orderKey(category, parent);
+            const arr = userState.folderOrderByParent[key];
+            const from = arr.indexOf(dragInfo.id);
+            const to = arr.indexOf(id);
             if (from === -1 || to === -1 || from === to) return;
             arr.splice(from, 1);
-            arr.splice(to, 0, dragInfo.name);
+            arr.splice(to, 0, dragInfo.id);
             renderTree();
         });
     });
@@ -631,7 +757,7 @@ function wireTree() {
     outlineList.querySelectorAll('.tree-play[draggable="true"]').forEach(li => {
         const id = li.dataset.id;
         const category = li.dataset.category;
-        const folder = li.dataset.folder;
+        const folder = li.dataset.folder || null;
 
         li.addEventListener("dragstart", (e) => {
             e.stopPropagation();
@@ -647,7 +773,7 @@ function wireTree() {
         });
 
         li.addEventListener("dragover", (e) => {
-            if (!dragInfo || dragInfo.type !== "play" || dragInfo.category !== category || dragInfo.folder !== folder) return;
+            if (!dragInfo || dragInfo.type !== "play" || dragInfo.category !== category || (dragInfo.folder || null) !== (folder || null)) return;
             e.preventDefault();
             e.stopPropagation();
             if (dragInfo.id === id) return;
@@ -694,7 +820,7 @@ function openPlay(id, exampleIndex) {
     modalTitle.textContent = play.title;
     modalBadges.innerHTML = `
         <span class="badge cat-${play.category}">${CATEGORY_LABELS[play.category] || play.category}</span>
-        <span class="badge">${escapeHtml(typeLabel(play.type))}</span>
+        <span class="badge">${escapeHtml(folderName(play.folderId))}</span>
         ${(play.tags || []).map(t => `<span class="badge">${escapeHtml(t)}</span>`).join("")}
     `;
     modalNotes.textContent = play.notes || "";
@@ -725,7 +851,7 @@ cancelNotesBtn.addEventListener("click", exitNotesEditMode);
 saveNotesBtn.addEventListener("click", () => {
     if (!activePlay) return;
     const val = modalNotesEdit.value.trim();
-    userState.notesOverride[activePlay.id] = val;
+    userState.playOverrides[activePlay.id] = { ...(userState.playOverrides[activePlay.id] || {}), notes: val };
     saveUserState();
     activePlay.notes = val;
     modalNotes.textContent = val;
@@ -785,6 +911,14 @@ document.getElementById("addExampleBtn").addEventListener("click", () => {
     if (activePlay) openAddExample(activePlay.id);
 });
 
+document.getElementById("editPlayBtn").addEventListener("click", () => {
+    if (activePlay) openEditPlay(activePlay);
+});
+
+document.getElementById("editExampleBtn").addEventListener("click", () => {
+    if (activePlay) openEditExample(activePlay.id, activePlay.examples[activeExampleIndex]);
+});
+
 function onYouTubeIframeAPIReady() {
     ytApiReady = true;
 }
@@ -832,7 +966,7 @@ function playLocalClip(clip) {
     };
 }
 
-// ---- Add Play ----
+// ---- Add / Edit Play ----
 
 function resolveClipTiming(fd, fallbackStart) {
     const startInput = parseFlexibleTime(fd.get("startTime"));
@@ -847,21 +981,73 @@ function resolveClipTiming(fd, fallbackStart) {
 
 const addPlayModal = document.getElementById("addPlayModal");
 const addPlayForm = document.getElementById("addPlayForm");
+const addPlayTitleEl = document.getElementById("addPlayTitle");
+const addPlaySubmitEl = document.getElementById("addPlaySubmit");
+const addPlayVideoFields = document.getElementById("addPlayVideoFields");
 const addPlayCategorySelect = document.getElementById("addPlayCategory");
-const addPlayFolderInput = document.getElementById("addPlayFolder");
+const addPlayFolderSelect = document.getElementById("addPlayFolder");
+let editPlayTargetId = null;
 
-document.getElementById("addPlayFab").addEventListener("click", () => {
+function openAddPlay() {
+    editPlayTargetId = null;
     addPlayForm.reset();
-    if (nav.category) addPlayCategorySelect.value = nav.category;
-    if (nav.folder) addPlayFolderInput.value = nav.folder;
+    addPlayTitleEl.textContent = "새 전술 추가";
+    addPlaySubmitEl.textContent = "추가하기";
+    addPlayVideoFields.hidden = false;
+    const category = nav.category || "offense";
+    addPlayCategorySelect.value = category;
+    populateFolderSelect(addPlayFolderSelect, category, currentFolderId());
     addPlayModal.hidden = false;
-});
+}
+
+function openEditPlay(play) {
+    editPlayTargetId = play.id;
+    addPlayForm.reset();
+    addPlayTitleEl.textContent = "전술 정보 수정";
+    addPlaySubmitEl.textContent = "저장하기";
+    addPlayVideoFields.hidden = true;
+    addPlayForm.title.value = play.title;
+    addPlayForm.notes.value = play.notes || "";
+    addPlayCategorySelect.value = play.category;
+    populateFolderSelect(addPlayFolderSelect, play.category, play.folderId || "");
+    addPlayModal.hidden = false;
+}
+
+document.getElementById("addPlayFab").addEventListener("click", openAddPlay);
 document.getElementById("closeAddPlay").addEventListener("click", () => addPlayModal.hidden = true);
 document.getElementById("addPlayBackdrop").addEventListener("click", () => addPlayModal.hidden = true);
+
+addPlayCategorySelect.addEventListener("change", () => {
+    populateFolderSelect(addPlayFolderSelect, addPlayCategorySelect.value, "");
+});
 
 addPlayForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const fd = new FormData(addPlayForm);
+    const title = fd.get("title").trim();
+    const category = fd.get("category");
+    const folderId = fd.get("folderId") || null;
+    const notes = fd.get("notes").trim();
+
+    if (editPlayTargetId) {
+        userState.playOverrides[editPlayTargetId] = {
+            ...(userState.playOverrides[editPlayTargetId] || {}),
+            title, category, folderId, notes
+        };
+        saveUserState();
+        addPlayModal.hidden = true;
+        nav.category = category;
+        nav.path = pathToFolder(folderId);
+        expandToNav();
+        clearSearch();
+        renderAll();
+        if (activePlay && activePlay.id === editPlayTargetId) {
+            const refreshed = currentAll.find(p => p.id === editPlayTargetId);
+            if (refreshed) openPlay(editPlayTargetId, activeExampleIndex);
+        }
+        return;
+    }
+
     const parsed = extractYoutube(fd.get("videoUrl"));
     if (!parsed) {
         alert("유튜브 링크를 확인해주세요.");
@@ -871,12 +1057,12 @@ addPlayForm.addEventListener("submit", (e) => {
     if (!timing) return;
     const play = {
         id: uid("play"),
-        title: fd.get("title").trim(),
-        category: fd.get("category"),
-        type: fd.get("type").trim(),
+        title,
+        category,
+        folderId,
         tags: [],
         team: "",
-        notes: fd.get("notes").trim(),
+        notes,
         examples: [{
             id: uid("ex"),
             label: fd.get("exampleLabel").trim(),
@@ -892,22 +1078,41 @@ addPlayForm.addEventListener("submit", (e) => {
     saveUserState();
     addPlayForm.reset();
     addPlayModal.hidden = true;
-    nav.category = play.category;
-    nav.folder = play.type || "";
+    nav.category = category;
+    nav.path = pathToFolder(folderId);
     expandToNav();
     clearSearch();
     renderAll();
 });
 
-// ---- Add Example (to existing play) ----
+// ---- Add / Edit Example ----
 
 const addExampleModal = document.getElementById("addExampleModal");
 const addExampleForm = document.getElementById("addExampleForm");
+const addExampleTitleEl = document.getElementById("addExampleTitle");
+const addExampleSubmitEl = document.getElementById("addExampleSubmit");
 let addExampleTargetId = null;
+let editExampleTargetId = null;
 
 function openAddExample(playId) {
+    editExampleTargetId = null;
     addExampleTargetId = playId;
     addExampleForm.reset();
+    addExampleTitleEl.textContent = "예시 영상 추가";
+    addExampleSubmitEl.textContent = "추가하기";
+    addExampleModal.hidden = false;
+}
+
+function openEditExample(playId, example) {
+    editExampleTargetId = example.id;
+    addExampleTargetId = playId;
+    addExampleForm.reset();
+    addExampleTitleEl.textContent = "영상 정보 수정";
+    addExampleSubmitEl.textContent = "저장하기";
+    addExampleForm.videoUrl.value = example.youtubeId ? `https://www.youtube.com/watch?v=${example.youtubeId}` : "";
+    addExampleForm.startTime.value = example.start ? formatTime(example.start) : "";
+    addExampleForm.endTime.value = example.end ? formatTime(example.end) : "";
+    addExampleForm.exampleLabel.value = example.label || "";
     addExampleModal.hidden = false;
 }
 
@@ -924,6 +1129,25 @@ addExampleForm.addEventListener("submit", (e) => {
     }
     const timing = resolveClipTiming(fd, parsed.start);
     if (!timing) return;
+
+    if (editExampleTargetId) {
+        userState.exampleOverrides[editExampleTargetId] = {
+            label: fd.get("exampleLabel").trim(),
+            source: "youtube",
+            youtubeId: parsed.videoId,
+            start: timing.start,
+            end: timing.end
+        };
+        saveUserState();
+        addExampleModal.hidden = true;
+        renderAll();
+        if (activePlay && activePlay.id === addExampleTargetId) {
+            const refreshed = currentAll.find(p => p.id === addExampleTargetId);
+            if (refreshed) openPlay(addExampleTargetId, activeExampleIndex);
+        }
+        return;
+    }
+
     const example = {
         id: uid("ex"),
         label: fd.get("exampleLabel").trim(),
@@ -949,9 +1173,11 @@ addExampleForm.addEventListener("submit", (e) => {
 const addFolderModal = document.getElementById("addFolderModal");
 const addFolderForm = document.getElementById("addFolderForm");
 let addFolderCategory = null;
+let addFolderParent = null;
 
-function openAddFolder(category) {
+function openAddFolder(category, parentId) {
     addFolderCategory = category;
+    addFolderParent = parentId || null;
     addFolderForm.reset();
     addFolderModal.hidden = false;
 }
@@ -964,29 +1190,51 @@ addFolderForm.addEventListener("submit", (e) => {
     const fd = new FormData(addFolderForm);
     const name = fd.get("folderName").trim();
     if (!name) return;
-    if (!userState.customFolders[addFolderCategory].includes(name)) {
-        userState.customFolders[addFolderCategory].push(name);
-    }
-    if (!userState.folderOrder[addFolderCategory].includes(name)) {
-        userState.folderOrder[addFolderCategory].unshift(name);
-    }
+    const id = uid("folder");
+    userState.folders[id] = { category: addFolderCategory, parentId: addFolderParent, name };
+    const key = orderKey(addFolderCategory, addFolderParent);
+    if (!userState.folderOrderByParent[key]) userState.folderOrderByParent[key] = [];
+    userState.folderOrderByParent[key].unshift(id);
     saveUserState();
     addFolderModal.hidden = true;
     nav.category = addFolderCategory;
-    nav.folder = name;
+    nav.path = pathToFolder(id);
     expandToNav();
     renderAll();
+});
+
+// ---- Notepad ----
+
+const notepadModal = document.getElementById("notepadModal");
+const notepadText = document.getElementById("notepadText");
+let notepadSaveTimer = null;
+
+document.getElementById("notepadBtn").addEventListener("click", () => {
+    notepadText.value = userState.scratchpad || "";
+    notepadModal.hidden = false;
+    notepadText.focus();
+});
+document.getElementById("closeNotepad").addEventListener("click", () => notepadModal.hidden = true);
+document.getElementById("notepadBackdrop").addEventListener("click", () => notepadModal.hidden = true);
+
+notepadText.addEventListener("input", () => {
+    clearTimeout(notepadSaveTimer);
+    notepadSaveTimer = setTimeout(() => {
+        userState.scratchpad = notepadText.value;
+        saveUserState();
+    }, 400);
 });
 
 // ---- Export ----
 
 document.getElementById("exportBtn").addEventListener("click", () => {
-    const merged = currentAll.map(({ id, title, category, type, tags, team, notes, examples, dateAdded }) => ({
-        id, title, category, type, tags, team, notes,
+    const foldersArr = Object.entries(userState.folders).map(([id, f]) => ({ id, category: f.category, parentId: f.parentId, name: f.name }));
+    const plays = currentAll.map(({ id, title, category, folderId, tags, team, notes, examples, dateAdded }) => ({
+        id, title, category, folderId: folderId || null, tags, team, notes,
         examples: examples.map(({ id, label, source, youtubeId, file, start, end }) => ({ id, label, source, youtubeId, file, start, end })),
         dateAdded
     }));
-    const blob = new Blob([JSON.stringify(merged, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify({ folders: foldersArr, plays }, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "plays.json";
@@ -1008,5 +1256,6 @@ document.addEventListener("keydown", (e) => {
         addPlayModal.hidden = true;
         addExampleModal.hidden = true;
         addFolderModal.hidden = true;
+        notepadModal.hidden = true;
     }
 });

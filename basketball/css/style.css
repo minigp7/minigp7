@@ -434,10 +434,12 @@ a {
     font-size: 0.82rem;
 }
 
-.folder-delete {
+.folder-card-actions {
     position: absolute;
-    top: 12px;
-    right: 12px;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 2px;
 }
 
 .folder-add {
@@ -577,11 +579,13 @@ a {
     flex-shrink: 0;
 }
 
+.tree-rename,
 .tree-delete {
     opacity: 0;
     flex-shrink: 0;
 }
 
+.tree-row:hover .tree-rename,
 .tree-row:hover .tree-delete {
     opacity: 1;
 }
@@ -686,6 +690,19 @@ a {
     font-size: 1.15rem;
 }
 
+.clip-info-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.current-example-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .example-switcher {
     display: flex;
     gap: 6px;
@@ -756,6 +773,32 @@ a {
 /* Forms */
 .form-panel {
     max-width: 460px;
+}
+
+.notepad-hint {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.notepad-textarea {
+    width: 100%;
+    min-height: 320px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.notepad-textarea:focus {
+    outline: none;
+    border-color: var(--accent-a);
 }
 
 .form-panel h2 {
