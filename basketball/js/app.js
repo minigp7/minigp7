@@ -959,11 +959,14 @@ function playYoutubeClip(clip, attempt) {
         });
     } else {
         ytPlayer = new YT.Player("youtubePlayer", {
+            width: "100%",
+            height: "100%",
             videoId: clip.youtubeId,
             playerVars: {
                 start: clip.start || 0,
                 end: clip.end || undefined,
                 autoplay: 1,
+                playsinline: 1,
                 rel: 0
             },
             events: {

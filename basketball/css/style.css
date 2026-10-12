@@ -717,6 +717,14 @@ a {
     height: 100%;
 }
 
+.player-wrap iframe {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    border: 0;
+}
+
 .clip-info {
     padding-top: 16px;
     display: flex;
