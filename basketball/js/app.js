@@ -130,7 +130,7 @@ function defaultState() {
         exampleOverrides: {},
         folders: {},
         folderOrderByParent: {},
-        scratchpad: ""
+        notes: []
     };
 }
 
@@ -143,7 +143,7 @@ function migrateState(old) {
     next.order = old.order || [];
     next.removedPlays = old.removedPlays || [];
     next.removedExamples = old.removedExamples || {};
-    next.scratchpad = old.scratchpad || "";
+    next.notes = old.notes || (old.scratchpad ? [{ id: uid("note"), content: old.scratchpad, updatedAt: Date.now() }] : []);
     next.exampleOverrides = { ...(old.exampleOverrides || {}) };
     next.playOverrides = { ...(old.playOverrides || {}) };
     next.folders = { ...(old.folders || {}) };
@@ -1172,15 +1172,24 @@ addExampleForm.addEventListener("submit", (e) => {
 
 const addFolderModal = document.getElementById("addFolderModal");
 const addFolderForm = document.getElementById("addFolderForm");
-let addFolderCategory = null;
+const addFolderCategorySelect = document.getElementById("addFolderCategory");
+const addFolderHint = document.getElementById("addFolderHint");
 let addFolderParent = null;
 
 function openAddFolder(category, parentId) {
-    addFolderCategory = category;
     addFolderParent = parentId || null;
     addFolderForm.reset();
+    addFolderCategorySelect.value = category || "offense";
+    addFolderCategorySelect.disabled = !!category;
+    addFolderHint.textContent = addFolderParent
+        ? `"${folderName(addFolderParent)}" 폴더 안에 추가돼요.`
+        : "최상위 폴더로 추가돼요.";
     addFolderModal.hidden = false;
 }
+
+document.getElementById("addFolderFab").addEventListener("click", () => {
+    openAddFolder(nav.category, currentFolderId());
+});
 
 document.getElementById("closeAddFolder").addEventListener("click", () => addFolderModal.hidden = true);
 document.getElementById("addFolderBackdrop").addEventListener("click", () => addFolderModal.hidden = true);
@@ -1190,38 +1199,98 @@ addFolderForm.addEventListener("submit", (e) => {
     const fd = new FormData(addFolderForm);
     const name = fd.get("folderName").trim();
     if (!name) return;
+    const category = fd.get("category");
     const id = uid("folder");
-    userState.folders[id] = { category: addFolderCategory, parentId: addFolderParent, name };
-    const key = orderKey(addFolderCategory, addFolderParent);
+    userState.folders[id] = { category, parentId: addFolderParent, name };
+    const key = orderKey(category, addFolderParent);
     if (!userState.folderOrderByParent[key]) userState.folderOrderByParent[key] = [];
     userState.folderOrderByParent[key].unshift(id);
     saveUserState();
     addFolderModal.hidden = true;
-    nav.category = addFolderCategory;
+    nav.category = category;
     nav.path = pathToFolder(id);
     expandToNav();
     renderAll();
 });
 
-// ---- Notepad ----
+// ---- Notepad (multiple notes, browsable list) ----
 
 const notepadModal = document.getElementById("notepadModal");
 const notepadText = document.getElementById("notepadText");
+const notepadList = document.getElementById("notepadList");
+const deleteNoteBtn = document.getElementById("deleteNoteBtn");
 let notepadSaveTimer = null;
+let activeNoteId = null;
+
+function sortedNotes() {
+    return [...userState.notes].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function noteLabel(note) {
+    const firstLine = (note.content || "").split("\n")[0].trim();
+    return (firstLine || "새 메모").slice(0, 28);
+}
+
+function renderNotepadList() {
+    notepadList.innerHTML = sortedNotes().map(n => `
+        <li class="notepad-item ${n.id === activeNoteId ? "active" : ""}" data-id="${n.id}">${escapeHtml(noteLabel(n))}</li>
+    `).join("");
+    notepadList.querySelectorAll(".notepad-item").forEach(li => {
+        li.addEventListener("click", () => selectNote(li.dataset.id));
+    });
+}
+
+function selectNote(id) {
+    activeNoteId = id;
+    const note = userState.notes.find(n => n.id === id);
+    notepadText.value = note ? note.content : "";
+    notepadText.disabled = !note;
+    deleteNoteBtn.hidden = !note;
+    renderNotepadList();
+}
+
+function createNote() {
+    const note = { id: uid("note"), content: "", updatedAt: Date.now() };
+    userState.notes.push(note);
+    saveUserState();
+    selectNote(note.id);
+    notepadText.focus();
+}
 
 document.getElementById("notepadBtn").addEventListener("click", () => {
-    notepadText.value = userState.scratchpad || "";
     notepadModal.hidden = false;
+    if (userState.notes.length === 0) createNote();
+    else selectNote(sortedNotes()[0].id);
     notepadText.focus();
 });
 document.getElementById("closeNotepad").addEventListener("click", () => notepadModal.hidden = true);
 document.getElementById("notepadBackdrop").addEventListener("click", () => notepadModal.hidden = true);
+document.getElementById("newNoteBtn").addEventListener("click", createNote);
+
+deleteNoteBtn.addEventListener("click", () => {
+    if (!activeNoteId || !confirm("이 메모를 삭제할까요?")) return;
+    userState.notes = userState.notes.filter(n => n.id !== activeNoteId);
+    saveUserState();
+    const rest = sortedNotes();
+    if (rest.length) selectNote(rest[0].id);
+    else {
+        activeNoteId = null;
+        notepadText.value = "";
+        notepadText.disabled = true;
+        deleteNoteBtn.hidden = true;
+        renderNotepadList();
+    }
+});
 
 notepadText.addEventListener("input", () => {
     clearTimeout(notepadSaveTimer);
     notepadSaveTimer = setTimeout(() => {
-        userState.scratchpad = notepadText.value;
+        const note = userState.notes.find(n => n.id === activeNoteId);
+        if (!note) return;
+        note.content = notepadText.value;
+        note.updatedAt = Date.now();
         saveUserState();
+        renderNotepadList();
     }, 400);
 });
 

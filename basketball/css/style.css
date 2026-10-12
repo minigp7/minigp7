@@ -590,12 +590,19 @@ a {
     opacity: 1;
 }
 
-/* Floating add button */
-.fab-btn {
+/* Floating add buttons */
+.fab-row {
     position: fixed;
     bottom: 26px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 50;
+}
+
+.fab-btn {
     background: var(--text);
     color: var(--text-dark);
     border: none;
@@ -605,11 +612,25 @@ a {
     font-weight: 700;
     cursor: pointer;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    z-index: 50;
+    white-space: nowrap;
 }
 
 .fab-btn:hover {
     box-shadow: 0 0 0 3px var(--accent-a), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.fab-btn-sm {
+    padding: 10px 18px;
+    font-size: 0.8rem;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: none;
+}
+
+.fab-btn-sm:hover {
+    border-color: var(--accent-a);
+    box-shadow: 0 0 0 2px rgba(34, 229, 255, 0.25);
 }
 
 /* Modal */
@@ -782,9 +803,72 @@ a {
     line-height: 1.5;
 }
 
+.notepad-panel {
+    max-width: 640px;
+    width: 100%;
+}
+
+.notepad-layout {
+    display: grid;
+    grid-template-columns: 170px 1fr;
+    gap: 14px;
+}
+
+.notepad-list-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.notepad-new-btn {
+    width: 100%;
+}
+
+.notepad-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.notepad-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notepad-item:hover {
+    background: var(--card);
+}
+
+.notepad-item.active {
+    background: var(--card);
+    color: var(--text);
+    font-weight: 600;
+}
+
+.notepad-editor-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.notepad-delete-btn {
+    align-self: flex-end;
+}
+
 .notepad-textarea {
     width: 100%;
-    min-height: 320px;
+    min-height: 280px;
     padding: 12px 14px;
     border-radius: 10px;
     border: 1px solid var(--border);
@@ -898,5 +982,18 @@ a {
     .search-wrap {
         width: 100%;
         flex: 1;
+    }
+
+    .notepad-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .notepad-list {
+        max-height: 140px;
+    }
+
+    .fab-row {
+        flex-direction: column;
+        align-items: stretch;
     }
 }

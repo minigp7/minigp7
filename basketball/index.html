@@ -52,7 +52,10 @@
         </aside>
     </main>
 
-    <button id="addPlayFab" class="fab-btn">+ 새 전술 / 영상 추가</button>
+    <div class="fab-row">
+        <button id="addPlayFab" class="fab-btn">+ 새 전술 / 영상 추가</button>
+        <button id="addFolderFab" class="fab-btn fab-btn-sm">+ 새 폴더</button>
+    </div>
 
     <!-- Clip Player Modal -->
     <div id="clipModal" class="modal" hidden>
@@ -171,7 +174,14 @@
         <div class="modal-panel form-panel">
             <button id="closeAddFolder" class="modal-close" aria-label="닫기">&times;</button>
             <h2 id="addFolderTitle">새 폴더 만들기</h2>
+            <p id="addFolderHint" class="notepad-hint"></p>
             <form id="addFolderForm">
+                <label>구분
+                    <select name="category" id="addFolderCategory">
+                        <option value="offense">공격</option>
+                        <option value="defense">수비</option>
+                    </select>
+                </label>
                 <label>폴더 이름
                     <input type="text" name="folderName" placeholder="예: 지역 상대, 맨투맨 상대" required>
                 </label>
@@ -183,11 +193,20 @@
     <!-- Notepad Modal -->
     <div id="notepadModal" class="modal" hidden>
         <div class="modal-backdrop" id="notepadBackdrop"></div>
-        <div class="modal-panel form-panel">
+        <div class="modal-panel notepad-panel">
             <button id="closeNotepad" class="modal-close" aria-label="닫기">&times;</button>
             <h2>메모장</h2>
             <p class="notepad-hint">전술 짜면서 드는 생각, 고민 등을 자유롭게 적어두는 공간이에요. 자동 저장돼요.</p>
-            <textarea id="notepadText" class="notepad-textarea" placeholder="여기에 자유롭게 메모하세요..."></textarea>
+            <div class="notepad-layout">
+                <div class="notepad-list-col">
+                    <button type="button" id="newNoteBtn" class="btn btn-ghost btn-sm notepad-new-btn">+ 새 메모</button>
+                    <ul id="notepadList" class="notepad-list"></ul>
+                </div>
+                <div class="notepad-editor-col">
+                    <textarea id="notepadText" class="notepad-textarea" placeholder="여기에 자유롭게 메모하세요..."></textarea>
+                    <button type="button" id="deleteNoteBtn" class="btn btn-ghost btn-sm notepad-delete-btn">이 메모 삭제</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -198,7 +217,9 @@
             <button id="closeGuide" class="modal-close" aria-label="닫기">&times;</button>
             <h2>사용 방법</h2>
             <h3>폴더로 정리하기</h3>
-            <p>맨 처음 화면에서 <b>공격</b> / <b>수비</b>를 고르면, 그 안에서 <b>+ 새 폴더</b>로 원하는 폴더를 만들 수 있어요. 폴더 안에 또 폴더를 만들 수도 있어요(예: 지역 상대 → 2-3존). 폴더 카드의 ✎ 아이콘으로 이름을 바꿀 수 있어요.</p>
+            <p>맨 처음 화면에서 <b>공격</b> / <b>수비</b>를 고르면, 그 안에서 화면 아래 <b>+ 새 폴더</b> 버튼(전술 추가 버튼 옆에 작게 있어요)으로 원하는 폴더를 만들 수 있어요. 폴더 안에 또 폴더를 만들 수도 있어요(예: 지역 상대 → 2-3존). 폴더 카드의 ✎ 아이콘으로 이름을 바꿀 수 있어요.</p>
+            <h3>메모장</h3>
+            <p>상단 <b>메모장</b> 버튼을 누르면 여러 개의 메모를 따로따로 적을 수 있어요. <b>+ 새 메모</b>로 새 메모를 추가하고, 왼쪽 목록에서 이전에 쓴 메모들을 클릭해서 다시 볼 수 있어요.</p>
             <h3>영상 추가하기 / 수정하기</h3>
             <p>오른쪽 아래 <b>+ 새 전술 / 영상 추가</b> 버튼으로 유튜브 링크와 이름만 적으면 바로 추가돼요. 재생 화면에서 제목 옆 ✎로 전술 이름/구분/폴더를 수정하고, 번호 옆 ✎로 지금 보고 있는 영상의 링크·구간·이름을 수정할 수 있어요.</p>
             <h3>클립 구간(시작/끝) 지정하기</h3>
