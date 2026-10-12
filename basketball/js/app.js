@@ -799,7 +799,19 @@ const modalBadges = document.getElementById("modalBadges");
 const modalNotes = document.getElementById("modalNotes");
 const youtubePlayerEl = document.getElementById("youtubePlayer");
 const localPlayerEl = document.getElementById("localPlayer");
+const playerFallback = document.getElementById("playerFallback");
+const playerFallbackLink = document.getElementById("playerFallbackLink");
 const replayBtn = document.getElementById("replayBtn");
+
+function showPlayerFallback(clip, message) {
+    playerFallback.querySelector("p").innerHTML = message;
+    playerFallbackLink.href = `https://www.youtube.com/watch?v=${clip.youtubeId}${clip.start ? `&t=${clip.start}s` : ""}`;
+    playerFallback.hidden = false;
+}
+
+function hidePlayerFallback() {
+    playerFallback.hidden = true;
+}
 const exampleSwitcher = document.getElementById("exampleSwitcher");
 const currentExampleLabel = document.getElementById("currentExampleLabel");
 const editNotesBtn = document.getElementById("editNotesBtn");
@@ -879,6 +891,7 @@ function renderExampleSwitcher() {
 }
 
 function playActiveExample() {
+    hidePlayerFallback();
     const clip = activePlay.examples[activeExampleIndex];
     if (clip.source === "local") {
         youtubePlayerEl.hidden = true;
@@ -897,6 +910,7 @@ function closeClipModal() {
     clipModal.hidden = true;
     if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
     localPlayerEl.pause();
+    hidePlayerFallback();
     activePlay = null;
 }
 
@@ -924,9 +938,17 @@ function onYouTubeIframeAPIReady() {
 }
 window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
-function playYoutubeClip(clip) {
+let ytErrorHandlerClip = null;
+
+function playYoutubeClip(clip, attempt) {
+    attempt = attempt || 0;
+    ytErrorHandlerClip = clip;
     if (!ytApiReady || typeof YT === "undefined") {
-        setTimeout(() => playYoutubeClip(clip), 200);
+        if (attempt >= 25) {
+            showPlayerFallback(clip, "유튜브 플레이어를 불러오지 못했어요.<br>광고 차단 확장 프로그램이나 추적 방지 기능을 꺼보시거나, 아래 링크로 직접 열어보세요.");
+            return;
+        }
+        setTimeout(() => playYoutubeClip(clip, attempt + 1), 200);
         return;
     }
     if (ytPlayer) {
@@ -943,6 +965,12 @@ function playYoutubeClip(clip) {
                 end: clip.end || undefined,
                 autoplay: 1,
                 rel: 0
+            },
+            events: {
+                onError: () => showPlayerFallback(
+                    ytErrorHandlerClip,
+                    "이 영상은 재생할 수 없어요 (비공개/삭제되었거나 임베드가 막혀 있을 수 있어요).<br>아래 링크로 직접 열어보세요."
+                )
             }
         });
     }
@@ -1173,17 +1201,20 @@ addExampleForm.addEventListener("submit", (e) => {
 const addFolderModal = document.getElementById("addFolderModal");
 const addFolderForm = document.getElementById("addFolderForm");
 const addFolderCategorySelect = document.getElementById("addFolderCategory");
+const addFolderCategoryField = document.getElementById("addFolderCategoryField");
 const addFolderHint = document.getElementById("addFolderHint");
 let addFolderParent = null;
+let addFolderLockedCategory = null;
 
 function openAddFolder(category, parentId) {
     addFolderParent = parentId || null;
+    addFolderLockedCategory = category || null;
     addFolderForm.reset();
     addFolderCategorySelect.value = category || "offense";
-    addFolderCategorySelect.disabled = !!category;
+    addFolderCategoryField.hidden = !!category;
     addFolderHint.textContent = addFolderParent
         ? `"${folderName(addFolderParent)}" 폴더 안에 추가돼요.`
-        : "최상위 폴더로 추가돼요.";
+        : (category ? `${CATEGORY_LABELS[category]} 최상위 폴더로 추가돼요.` : "최상위 폴더로 추가돼요.");
     addFolderModal.hidden = false;
 }
 
@@ -1199,7 +1230,7 @@ addFolderForm.addEventListener("submit", (e) => {
     const fd = new FormData(addFolderForm);
     const name = fd.get("folderName").trim();
     if (!name) return;
-    const category = fd.get("category");
+    const category = addFolderLockedCategory || fd.get("category");
     const id = uid("folder");
     userState.folders[id] = { category, parentId: addFolderParent, name };
     const key = orderKey(category, addFolderParent);

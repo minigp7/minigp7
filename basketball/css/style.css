@@ -684,6 +684,31 @@ a {
     background: #000;
     border-radius: 8px;
     overflow: hidden;
+    position: relative;
+}
+
+.player-fallback {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+    background: #000;
+}
+
+.player-fallback:not([hidden]) {
+    display: flex;
+}
+
+.player-fallback p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.6;
 }
 
 #youtubePlayer,
@@ -895,6 +920,10 @@ a {
     display: flex;
     flex-direction: column;
     gap: 14px;
+}
+
+#addFolderCategoryField[hidden] {
+    display: none;
 }
 
 #addPlayForm label,

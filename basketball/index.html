@@ -65,6 +65,10 @@
             <div class="player-wrap">
                 <div id="youtubePlayer"></div>
                 <video id="localPlayer" controls hidden></video>
+                <div id="playerFallback" class="player-fallback" hidden>
+                    <p>유튜브 플레이어를 불러오지 못했어요.<br>광고 차단 확장 프로그램이나 추적 방지 기능을 꺼보시거나, 아래 링크로 직접 열어보세요.</p>
+                    <a id="playerFallbackLink" href="#" target="_blank" rel="noopener" class="btn btn-outline btn-sm">유튜브에서 바로 보기</a>
+                </div>
             </div>
             <div class="clip-info">
                 <div class="clip-info-head">
@@ -176,7 +180,7 @@
             <h2 id="addFolderTitle">새 폴더 만들기</h2>
             <p id="addFolderHint" class="notepad-hint"></p>
             <form id="addFolderForm">
-                <label>구분
+                <label id="addFolderCategoryField">구분
                     <select name="category" id="addFolderCategory">
                         <option value="offense">공격</option>
                         <option value="defense">수비</option>
