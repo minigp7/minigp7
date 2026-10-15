@@ -95,6 +95,7 @@
                 <div class="current-example-row">
                     <p id="currentExampleLabel" class="current-example-label"></p>
                     <button id="editExampleBtn" class="icon-btn" title="이 영상 정보 수정">✎</button>
+                    <button id="deleteExampleBtn" class="icon-btn" title="이 영상 삭제">&times;</button>
                 </div>
                 <button id="addExampleBtn" class="btn btn-ghost btn-sm">+ 이 전술에 예시 영상 추가</button>
             </div>
@@ -231,7 +232,7 @@
             <h3>순서 바꾸기 / 접기·펼치기</h3>
             <p>오른쪽 <b>Tactic Map</b> 패널의 화살표를 누르면 펼치고 접을 수 있고, 드래그로 같은 단계끼리 순서를 바꿀 수 있어요.</p>
             <h3>삭제하기</h3>
-            <p>전술/폴더의 × 버튼을 누르면 비밀번호를 물어봐요 (폴더는 안이 완전히 비어있어야 삭제 가능).</p>
+            <p>전술/폴더의 × 버튼을 누르면 비밀번호를 물어봐요 (폴더는 안이 완전히 비어있어야 삭제 가능). 영상을 잘못 넣었다면 재생 화면에서 번호로 그 영상을 고른 뒤, 이름 옆 × 버튼으로 그 영상 하나만 지울 수 있어요 (전술에 영상이 하나만 남아있으면 지울 수 없어요 — 그럴 땐 전술 자체를 삭제하세요).</p>
             <h3>⚠️ 브라우저에만 저장돼요</h3>
             <p>여기서 추가/수정/삭제/정렬한 내용은 <b>지금 이 브라우저에만</b> 저장돼요 (localStorage). 모두에게 영구 반영하려면 상단의 <b>내보내기</b> 버튼으로 최신 상태를 받아서 저장소의 <code>basketball/data/plays.json</code>을 교체하고 커밋/푸시하세요.</p>
         </div>

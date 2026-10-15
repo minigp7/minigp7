@@ -819,6 +819,7 @@ const modalNotesEdit = document.getElementById("modalNotesEdit");
 const notesEditActions = document.getElementById("notesEditActions");
 const saveNotesBtn = document.getElementById("saveNotesBtn");
 const cancelNotesBtn = document.getElementById("cancelNotesBtn");
+const deleteExampleBtn = document.getElementById("deleteExampleBtn");
 
 let ytApiReady = false;
 let ytPlayer = null;
@@ -888,6 +889,7 @@ function renderExampleSwitcher() {
     const endStr = formatTime(ex.end);
     const range = (ex.start || ex.end) ? ` (${startStr}~${endStr || ""})` : "";
     currentExampleLabel.textContent = base + range;
+    deleteExampleBtn.hidden = activePlay.examples.length <= 1;
 }
 
 function playActiveExample() {
@@ -932,6 +934,34 @@ document.getElementById("editPlayBtn").addEventListener("click", () => {
 document.getElementById("editExampleBtn").addEventListener("click", () => {
     if (activePlay) openEditExample(activePlay.id, activePlay.examples[activeExampleIndex]);
 });
+
+deleteExampleBtn.addEventListener("click", () => {
+    if (!activePlay) return;
+    deleteExample(activePlay.id, activePlay.examples[activeExampleIndex].id);
+});
+
+function deleteExample(playId, exampleId) {
+    const play = currentAll.find(p => p.id === playId);
+    if (!play || (play.examples || []).length <= 1) {
+        alert("전술에는 최소 하나의 영상이 있어야 해요. 이 전술 자체를 지우려면 카드의 × 버튼을 쓰세요.");
+        return;
+    }
+    if (!confirmWithPassword("이 영상을 삭제할까요?")) return;
+    if (userState.examplesByPlay[playId]) {
+        userState.examplesByPlay[playId] = userState.examplesByPlay[playId].filter(ex => ex.id !== exampleId);
+    }
+    if (!userState.removedExamples[playId]) userState.removedExamples[playId] = [];
+    if (!userState.removedExamples[playId].includes(exampleId)) userState.removedExamples[playId].push(exampleId);
+    saveUserState();
+    renderAll();
+    const refreshed = currentAll.find(p => p.id === playId);
+    if (refreshed && refreshed.examples.length) {
+        activeExampleIndex = Math.min(activeExampleIndex, refreshed.examples.length - 1);
+        openPlay(playId, activeExampleIndex);
+    } else {
+        closeClipModal();
+    }
+}
 
 function onYouTubeIframeAPIReady() {
     ytApiReady = true;
